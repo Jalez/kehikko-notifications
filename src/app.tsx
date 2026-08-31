@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ModuleContext } from 'roadmap-module-protocol'
+import { connect, type Connection } from 'roadmap-module-protocol/client'
 
 import { ID } from '../manifest.ts'
 import type { Kehikko, Row } from '../store.ts'
 import { sift, type Scope } from './sift.ts'
 import { Bar } from './view/bar.tsx'
 import { Line } from './view/line.tsx'
-import { connect, type Host } from './wire/host.ts'
 
 /**
  * The page: this app's own store on one side, the wire on the other, and one
@@ -39,13 +39,24 @@ import { connect, type Host } from './wire/host.ts'
  * there is a store behind this page and not merely a list in state.
  *
  * **Storing the connection after listening.** The mailbox replays
- * SYNCHRONOUSLY, inside `connect()`. A handler can therefore fire before
- * `connect` has returned, so anything a handler reaches for must already exist:
- * in References, a handler that referenced the connection hung the page forever
- * with no question sent and no timeout. Everything the handlers below touch is
- * a `useRef` or a `useState` setter, both of which are stable and both of which
- * exist before `connect` is called. The connection itself is stored in a ref
- * that nothing reads during the greeting.
+ * SYNCHRONOUSLY, and the client splits `connect` from `listen()` for exactly
+ * that reason: the connection is stored first, and only then is it told to
+ * hear the backlog. A handler firing before the assignment is a page that hangs
+ * with no question sent and no timeout, which is what happened in References.
+ *
+ * ## The wire underneath, which is no longer written here
+ *
+ * `wire/host.ts` and `wire/mailbox.ts` — 507 lines, near-identical to the copy
+ * in nine sibling modules — are `roadmap-module-protocol/client` now. Nothing
+ * this page says on the wire changed. The `goto` backstop is passed explicitly
+ * as 900ms because that was THIS module's number and the client's default is
+ * 500; the option exists precisely so adoption keeps each module's own timing
+ * rather than quietly unifying it.
+ *
+ * This is also the only module in the family that handles `roadmap.event`, and
+ * `onEvent` is the client's name for the same thing, handed over whole — `from`,
+ * `at` and `kehikko` are the host's envelope and are what makes an attribution
+ * on this page worth printing.
  */
 
 /** The write ticket, printed into this document by the server that minted it. */
@@ -90,7 +101,7 @@ export function App() {
   const [greeted, setGreeted] = useState(false)
   const [armed, setArmed] = useState(false)
 
-  const host = useRef<Host | null>(null)
+  const host = useRef<Connection | null>(null)
   const TICKET = useRef<string>('')
   if (!TICKET.current) TICKET.current = ticket()
 
@@ -138,9 +149,9 @@ export function App() {
    */
   useEffect(() => {
     /* One function for both, because a greeting and a context change carry the
-       same object and the page has no reason to tell them apart — see
-       `wire/host.ts` on why the message is passed through whole rather than
-       rebuilt from a list of named fields. That list is what lost `prompt`,
+       same object and the page has no reason to tell them apart — see the
+       client's `connect.ts` on why the message is passed through whole rather
+       than rebuilt from a list of named fields. That list is what lost `prompt`,
        `pinned` and `selection` in four files in one day, and the failure has no
        symptom: a field left out quietly becomes the page's belief that the host
        said nothing about it. */
@@ -154,8 +165,20 @@ export function App() {
       root.classList.toggle('light', context.theme === 'light')
     }
 
-    host.current = connect(ID, {
-      onHello: arrived,
+    const live = connect(ID, {
+      /**
+       * The greeting, and the second thing it carries.
+       *
+       * `state` is whatever the host is keeping for this module, and this page
+       * asks it to keep nothing — it has its own store on its own origin, which
+       * is where every row it draws comes from, and a filter is remembered in
+       * `localStorage` because it is this browser's business rather than the
+       * roadmap's. So the parameter is named, ignored, and PRESENT: the copy of
+       * the wire that used to stand here dropped it at the signature, which
+       * meant a page that decided to read it later would have had to rediscover
+       * that the host had been sending it all along.
+       */
+      onHello: (context, _kept) => arrived(context),
       onContext: arrived,
 
       /**
@@ -194,13 +217,26 @@ export function App() {
       onGoto: (_goto, answer) => {
         answer(false, 'This container is a stream of what modules have said. There is nothing in it to walk to.')
       },
-    })
+    },
+    /* 900ms, which is this module's own number and not the client's 500. The
+       option exists so adoption keeps each module's timing rather than
+       unifying it by accident; changing it should be somebody deciding to,
+       not a refactor's side effect. */
+    { gotoBackstop: 900 })
+
+    /* Stored BEFORE it is told to listen. The mailbox replays synchronously
+       inside `listen()`, so the greeting almost always arrives on that line —
+       see the essay above and `listen` in the client. */
+    host.current = live
+    live.listen()
 
     void refresh()
 
     return () => {
-      host.current?.stop()
-      host.current = null
+      live.stop()
+      /* Cleared only if it is still ours: under StrictMode the second mount has
+         already assigned its own connection by the time some cleanups run. */
+      if (host.current === live) host.current = null
     }
   }, [post, refresh])
 

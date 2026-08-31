@@ -5,7 +5,7 @@ import './index.css'
 /**
  * Imported for its side effect, and the ORDER on this page is the whole point.
  *
- * `mailbox.ts` installs the one `message` listener at module scope, so it is
+ * The client installs the one `message` listener at module scope, so it is
  * listening as part of this bundle being evaluated — before React has rendered
  * anything, let alone run an effect. The host greets on the frame's `load`
  * event and effects run strictly after that, so a listener installed in
@@ -18,8 +18,12 @@ import './index.css'
  * to a module still loading is lost. So the window this import closes is a
  * window in which somebody else's notification disappears with nothing anywhere
  * recording that it did.
+ *
+ * It stays in the ENTRY, and the package's `sideEffects` field names the client
+ * files for the same reason: a module scope only a lazily-loaded chunk imports
+ * is a module scope that has not run yet.
  */
-import './wire/mailbox.ts'
+import 'roadmap-module-protocol/client'
 import { App } from './app.tsx'
 
 const root = document.getElementById('root')
