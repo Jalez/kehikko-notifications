@@ -29,6 +29,71 @@ import type { Kehikko, Row } from '../store.ts'
 
 export type Scope = 'all' | 'here'
 
+/**
+ * The offer this module hands the host, so the host can draw the control.
+ *
+ * ## Why the two presses left this page
+ *
+ * They were two `Button`s in the bar at the top of this container, in a column
+ * that is routinely 220 pixels wide — and five other modules in this family had
+ * each built the same thing in their own words, each taking a row of chrome
+ * from the thing somebody opened the module to look at. None of them could put
+ * it anywhere else, because the strip around a module belongs to the host.
+ *
+ * `roadmap.filters` is the host learning to take it. This module says what it
+ * can be narrowed by; the host draws one button in the container header and
+ * sends the press back in `context.filters`. The host is never told what any of
+ * it MEANS — `all` and `here` are this file's words and stay this file's words,
+ * which is why the six other filters in this family can be six different ideas
+ * without the host changing.
+ *
+ * ## Why the ids and the labels are not the same strings
+ *
+ * `id` is what travels, gets written down, and has to keep meaning the same
+ * thing across versions of this module. `label` is what a person reads and may
+ * be rewritten whenever it reads better. Spelling them the same would make the
+ * first rewording of a button into a filter that silently stops matching what
+ * is stored — which the host degrades to the fallback rather than getting
+ * wrong, but degrading is still somebody's chosen filter quietly reset.
+ *
+ * ## `fallback` is `all`, and that is the honest resting state
+ *
+ * It is what a container nobody has pressed this on shows, what the host
+ * returns to when a stored value names an option this module no longer has, and
+ * what its own "show everything" press goes to. `all` is the only candidate:
+ * `here` is a claim that this container knows which kehikko it is standing on,
+ * and it does not until a host has said so.
+ */
+export const OFFER = [
+  {
+    id: 'scope',
+    label: 'which kehikko',
+    fallback: 'all',
+    options: [
+      { id: 'all', label: 'All' },
+      { id: 'here', label: 'This kehikko' },
+    ],
+  },
+] as const
+
+/**
+ * Which scope a context is asking for.
+ *
+ * Anything this module does not recognise is `all`, and the leniency is
+ * required rather than defensive. The host reconciles a stored choice against
+ * what this module is offering — but it cannot do that before this module has
+ * offered anything, and the greeting goes out first. So the first choice this
+ * page ever receives may name an option from a version of itself that no longer
+ * exists, and a page that trusted it would narrow by a value nobody can see,
+ * choose, or clear.
+ *
+ * Two programs each assuming the other got it right is how a stale value
+ * survives. Both defend, and this is our half.
+ */
+export function scopeFrom(filters: Record<string, string> | undefined): Scope {
+  return filters?.scope === 'here' ? 'here' : 'all'
+}
+
 export interface Sifted {
   /** What to draw, newest first, already filtered. */
   rows: Row[]

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { sift } from '../src/sift.ts'
+import { sift, OFFER, scopeFrom } from '../src/sift.ts'
 import type { Row } from '../store.ts'
 
 /**
@@ -110,5 +110,61 @@ describe('sift does not hand back the caller\'s array', () => {
     /* The page redraws from `rows` on every change, and a sift that returned
        the same array would let one draw reorder the next one's input. */
     expect(rows[0]!.seq).toBeLessThan(rows[1]!.seq)
+  })
+})
+
+/**
+ * The offer this module hands the host, and what it does with the answer.
+ *
+ * The two presses that used to be in this page's own bar are now one button in
+ * the container header, drawn by the host out of this. What is tested here is
+ * the half that stayed: this module still says what the options are, what they
+ * are called and what they mean, and still defends itself against an answer it
+ * does not recognise.
+ */
+describe('the filter is offered rather than drawn', () => {
+  test('the offer is the same two states the bar used to draw', () => {
+    expect(OFFER).toHaveLength(1)
+    expect(OFFER[0]!.options.map((o) => o.id)).toEqual(['all', 'here'])
+  })
+
+  /*
+   * `all` and not `here`. It is what a container nobody has pressed this on
+   * shows, what the host returns to when a stored value names an option this
+   * module no longer has, and what its "show everything" press goes to. `here`
+   * is a claim that this container knows which kehikko it is standing on, and
+   * it does not until a host has said so.
+   */
+  test('the resting state is everything', () => {
+    expect(OFFER[0]!.fallback).toBe('all')
+  })
+
+  test('a chosen option is read straight off the context', () => {
+    expect(scopeFrom({ scope: 'here' })).toBe('here')
+    expect(scopeFrom({ scope: 'all' })).toBe('all')
+  })
+
+  /*
+   * The host reconciles a stored choice against what this module is offering —
+   * but it cannot before this module has offered anything, and the greeting
+   * goes out first. So the first choice this page ever receives may name an
+   * option from a version of itself that no longer exists. A page that trusted
+   * it would narrow by a value nobody can see, choose or clear.
+   */
+  test('an option this version does not know is the resting state, not a filter', () => {
+    expect(scopeFrom({ scope: 'this-kehikko-old-spelling' })).toBe('all')
+  })
+
+  test('and so are no filters at all, which is what a host without them sends', () => {
+    expect(scopeFrom({})).toBe('all')
+    expect(scopeFrom(undefined)).toBe('all')
+  })
+
+  /*
+   * A key that is not really a key. Read off a plain object, `constructor`
+   * finds something inherited that nobody ever chose.
+   */
+  test('a prototype lookup cannot become a filter', () => {
+    expect(scopeFrom(JSON.parse('{"constructor":"here"}') as Record<string, string>)).toBe('all')
   })
 })

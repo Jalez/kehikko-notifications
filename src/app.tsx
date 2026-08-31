@@ -4,7 +4,7 @@ import { connect, type Connection } from 'roadmap-module-protocol/client'
 
 import { ID } from '../manifest.ts'
 import type { Kehikko, Row } from '../store.ts'
-import { sift, type Scope } from './sift.ts'
+import { OFFER, scopeFrom, sift, type Scope } from './sift.ts'
 import { Bar } from './view/bar.tsx'
 import { Line } from './view/line.tsx'
 
@@ -71,20 +71,34 @@ function ticket(): string {
   }
 }
 
-const SCOPE_KEY = 'kehikko-notifications:scope'
-
-function rememberedScope(): Scope {
-  try {
-    return localStorage.getItem(SCOPE_KEY) === 'here' ? 'here' : 'all'
-  } catch {
-    /* A page framed WITHOUT `allow-same-origin` cannot reach localStorage and
-       THROWS rather than answering null. This module declares storage so it
-       should have one — but a declaration is not a request, a host is free to
-       refuse, and a page that white-screened because it was framed more tightly
-       than it asked would be a page making its own convenience a requirement. */
-    return 'all'
-  }
-}
+/**
+ * The key this page used to remember its filter in, kept only to be deleted.
+ *
+ * ## Why it is abandoned rather than migrated
+ *
+ * `localStorage` is per BROWSER. This page is loaded once and shown on whichever
+ * kehikko asks for it, so one key was one value shared by every container of
+ * this module on every canvas — two of them side by side, one meant to show
+ * this kehikko and one meant to show everything, would overwrite each other and
+ * the last press would win. That is not a limitation of the old code; it is the
+ * bug that moving the filter to the host fixes, because the host stores a
+ * choice against the CONTAINER.
+ *
+ * Migrating the value would push that one browser-wide answer into every
+ * container's store on every canvas — which is the bug being fixed, written
+ * once into a database that outlives it. So it is not read.
+ *
+ * And it could not be, even if it should be. There is no message for a module
+ * to SET its own filter, deliberately: the host owns the choice, the module
+ * owns the offer, and a module that could write the choice would be a module
+ * that can override a press. What is lost is one preference, once, on the day
+ * this module is updated; what a person does about it is press the control
+ * again, in the header, where it now lives.
+ *
+ * Removed rather than left lying, so that the next person reading this file
+ * does not find a live-looking key that nothing writes.
+ */
+const RETIRED_SCOPE_KEY = 'kehikko-notifications:scope'
 
 interface Standing {
   rows?: unknown
@@ -96,7 +110,21 @@ export function App() {
   const [rows, setRows] = useState<Row[]>([])
   const [held, setHeld] = useState(0)
   const [keep, setKeep] = useState(0)
-  const [scope, setScope] = useState<Scope>(rememberedScope)
+  /**
+   * Which scope this container is on, as the HOST last said.
+   *
+   * Not remembered here, and not remembered anywhere in this program. The
+   * choice belongs to the container — the host stores it beside where that
+   * container sits and whether it is folded, and hands it back in the greeting
+   * before this page has drawn anything, which is the whole reason it arrives
+   * as context rather than as a message of its own.
+   *
+   * `all` before any host has spoken, which is also the standalone answer: a
+   * page opened directly on this port is not on a kehikko, so "this kehikko" is
+   * not a question it could answer honestly anyway. The control being absent
+   * there costs nothing, because the filter would have been meaningless.
+   */
+  const [scope, setScope] = useState<Scope>('all')
   const [here, setHere] = useState<Kehikko | null>(null)
   const [greeted, setGreeted] = useState(false)
   const [armed, setArmed] = useState(false)
@@ -158,6 +186,11 @@ export function App() {
     const arrived = (context: ModuleContext) => {
       setGreeted(true)
       setHere(context.kehikko ?? null)
+      /* Read on every context and never remembered, so a press in the header
+         and a switch between two containers of this module both land the same
+         way. `scopeFrom` falls back for an id this version does not know — see
+         the essay there for why both halves have to defend that. */
+      setScope(scopeFrom(context.filters))
       const root = document.documentElement
       /* `light` set explicitly as well as `dark`, so a host asking for light
          over a machine set to dark actually gets it — see `index.css`. */
@@ -230,6 +263,32 @@ export function App() {
     host.current = live
     live.listen()
 
+    /*
+     * What this container can be narrowed by, said once.
+     *
+     * Once is enough, and only because the client replays the last offer after
+     * every `ready` — a frame that reloads is greeted again, and a page whose
+     * offer has not changed would otherwise have no reason to send anything and
+     * would silently lose its control. A module whose LABELS carry a count has
+     * to send again whenever the count changes; these two words never change,
+     * so this is the whole of it.
+     *
+     * After `listen()`, so that a host which greeted before this page mounted —
+     * the ordinary case, which is why the mailbox exists — has already been
+     * answered and the offer goes out rather than into a connection with
+     * nobody on the other end. Sent unconditionally: a page with no host posts
+     * into nothing, which costs nothing.
+     */
+    live.filters(OFFER.map((group) => ({ ...group, options: [...group.options] })))
+
+    /* The old per-browser key, taken out. See `RETIRED_SCOPE_KEY`. */
+    try {
+      localStorage.removeItem(RETIRED_SCOPE_KEY)
+    } catch {
+      /* A page framed without `allow-same-origin` cannot reach localStorage and
+         THROWS rather than answering null. Nothing here needs it to work. */
+    }
+
     void refresh()
 
     return () => {
@@ -239,15 +298,6 @@ export function App() {
       if (host.current === live) host.current = null
     }
   }, [post, refresh])
-
-  const chooseScope = useCallback((next: Scope) => {
-    setScope(next)
-    try {
-      localStorage.setItem(SCOPE_KEY, next)
-    } catch {
-      /* See `rememberedScope`. The filter still works; it is simply forgotten. */
-    }
-  }, [])
 
   const forget = useCallback(() => {
     setArmed((was) => {
@@ -271,15 +321,7 @@ export function App() {
 
   return (
     <div className="flex min-h-screen min-w-0 flex-col">
-      <Bar
-        scope={scope}
-        here={here}
-        held={held}
-        keep={keep}
-        armed={armed}
-        onScope={chooseScope}
-        onForget={forget}
-      />
+      <Bar held={held} keep={keep} armed={armed} onForget={forget} />
 
       {sifted.cannot ? (
         <p className="m-0 min-w-0 border-b px-2.5 py-2 text-[0.72rem] text-muted-foreground @[340px]/container:px-3">

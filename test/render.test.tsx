@@ -93,33 +93,22 @@ describe('a row is drawn as testimony', () => {
 
 describe('the bar', () => {
   const bar = (over: Partial<Parameters<typeof Bar>[0]> = {}) =>
-    render(
-      <Bar
-        scope="all"
-        here={HERE}
-        held={4}
-        keep={2000}
-        armed={false}
-        onScope={() => {}}
-        onForget={() => {}}
-        {...over}
-      />,
-    )
+    render(<Bar held={4} keep={2000} armed={false} onForget={() => {}} {...over} />)
 
-  test('both filter states are real pressable controls, and the chosen one says so', () => {
+  /*
+   * The filter is not drawn here any more. It is offered to the host over
+   * `roadmap.filters` and drawn as one button in the container header, which is
+   * the whole point of the change: this row was a fixed strip of chrome at the
+   * top of a container that is routinely 220 pixels wide.
+   *
+   * The test is here rather than deleted, because "the module stopped drawing
+   * it" is exactly what somebody would undo by accident while adding a control
+   * to this bar.
+   */
+  test('the filter is not on this page: it is offered to the host', () => {
     bar()
-    const all = screen.getByRole('button', { name: 'All' })
-    const here = screen.getByRole('button', { name: 'This kehikko' })
-    expect(all.getAttribute('aria-pressed')).toBe('true')
-    expect(here.getAttribute('aria-pressed')).toBe('false')
-  })
-
-  test('this-kehikko is never disabled, even with no bearings — a dead control explains nothing', () => {
-    bar({ here: null })
-    const here = screen.getByRole('button', { name: 'This kehikko' })
-    expect(here.hasAttribute('disabled')).toBe(false)
-    /* Pressing it puts a sentence on the page instead. See `sift.ts`. */
-    expect(here.getAttribute('title')).toContain('cannot be answered honestly')
+    expect(screen.queryByRole('button', { name: 'All' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'This kehikko' })).toBeNull()
   })
 
   test('forget takes two presses, and the second one says what it will do', () => {
@@ -130,9 +119,16 @@ describe('the bar', () => {
     expect(forget.getAttribute('title')).toContain('Press again')
   })
 
-  test('there is nothing to forget when nothing is held, so the button is absent', () => {
-    bar({ held: 0 })
+  /*
+   * And with the filter gone there is nothing else in the row, so the row goes
+   * too. It could not before — a filter is a thing you may want to press before
+   * there is anything to filter — and an empty container was spending
+   * thirty-one pixels on a bordered strip with nothing in it.
+   */
+  test('nothing held means no bar at all, not an empty one', () => {
+    const { container } = bar({ held: 0 })
     expect(screen.queryByRole('button', { name: 'Forget' })).toBeNull()
+    expect(container.querySelector('.sticky')).toBeNull()
   })
 
   test('nothing on this page announces the module’s own name', () => {

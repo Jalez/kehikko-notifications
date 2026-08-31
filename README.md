@@ -36,6 +36,22 @@ kehikko it happened on; `context.kehikko` says the one this container is standin
 host has told this container no kehikko, the filter cannot be honest: it shows
 everything and says why, because an empty list would be a claim, and a false one.
 
+**The filter is offered, not drawn.** The two presses used to be a strip at the
+top of this page, in a container that is routinely 220 pixels wide. They are now
+one button in the container header: this module sends `roadmap.filters` with its
+options and their words, the host draws a menu out of them and never learns what
+`here` means, and a press comes back in `context.filters`. What did not move is
+the reporting — the sentence when the filter cannot be honoured, and the count
+of lines that are neither here nor elsewhere, are things this module knows and
+the host cannot see.
+
+The choice is remembered by the host, against the CONTAINER. That is a fix as
+well as a move: it used to be a `localStorage` key, which is per browser, so two
+containers of this module on two kehikot shared one value and overwrote each
+other. The old key is deleted on load and deliberately not migrated — migrating
+one browser-wide answer into every container on every canvas is the bug, written
+down permanently.
+
 **`from` is the host's word; the contents are the sender's.** The host took the
 sender's id from its own registry, so no module can post under another's name.
 Nobody checked whether the sentence is true. Every row is therefore drawn as
