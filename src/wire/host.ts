@@ -122,7 +122,7 @@ export interface HostEvents {
    * No correlation id goes out and no reply goes back, because the protocol
    * says an event is not answered: a module that ignores every event it is sent
    * is a conforming module, and a host that waited for acknowledgement could be
-   * hung by a pane nobody is looking at. So this listener returns nothing and
+   * hung by a container nobody is looking at. So this listener returns nothing and
    * its return value is ignored — if it throws, the throw is swallowed below
    * and the next event still arrives, because one bad row must not deafen the
    * page.
@@ -282,7 +282,7 @@ export function connect(id: string, events: HostEvents = {}, source: MessageSour
       /* Answered exactly once, whatever the listener does — including nothing,
          including throwing. The host is waiting on this and will time out into
          "not found"; a module that leaves it to the timeout has turned a
-         hundred milliseconds into a reader watching a pane do nothing. */
+         hundred milliseconds into a reader watching a container do nothing. */
       let answered = false
       const answer = (found: boolean, why = '') => {
         if (answered) return

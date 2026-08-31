@@ -13,14 +13,14 @@ import type { Scope } from '../sift.ts'
  * every other press in this workspace when somebody changes the theme tokens.
  *
  * Two states and not three. There is no "everywhere except here": nobody asked
- * for it, and a third option on a control in a 220-pixel pane is a third option
+ * for it, and a third option on a control in a 220-pixel container is a third option
  * nobody reads. The user's words were "all, or this kehikko", and that is the
  * whole of it.
  *
- * The "this kehikko" button is never DISABLED, even when the pane does not know
+ * The "this kehikko" button is never DISABLED, even when the container does not know
  * where it is standing. A disabled control is a dead end — it says no and says
  * nothing about why, and the reason here is worth reading. Pressing it puts a
- * sentence on the page instead, and the sentence is the point: this pane has
+ * sentence on the page instead, and the sentence is the point: this container has
  * not been told which kehikko it is on. See `sift.ts`.
  *
  * ## Forget takes two presses, and it is not a `confirm()`
@@ -52,29 +52,29 @@ export function Bar({
   onForget(): void
 }) {
   return (
-    <div className="sticky top-0 z-10 flex min-w-0 flex-wrap items-center gap-1.5 border-b bg-background px-2.5 py-2 @[340px]/pane:px-3">
+    <div className="sticky top-0 z-10 flex min-w-0 flex-wrap items-center gap-1.5 border-b bg-background px-2.5 py-2 @[340px]/container:px-3">
       <div className="flex shrink-0 overflow-hidden rounded-md border" role="group" aria-label="which notifications to show">
         <Button
           type="button"
-          size="pane"
+          size="container"
           variant={scope === 'all' ? 'default' : 'ghost'}
           aria-pressed={scope === 'all'}
           className="rounded-none border-0"
-          title="Everything this pane has been shown, from every kehikko."
+          title="Everything this container has been shown, from every kehikko."
           onClick={() => onScope('all')}
         >
           All
         </Button>
         <Button
           type="button"
-          size="pane"
+          size="container"
           variant={scope === 'here' ? 'default' : 'ghost'}
           aria-pressed={scope === 'here'}
           className="rounded-none border-0"
           title={
             here
               ? `Only what happened on ${here.name || `kehikko ${here.id}`}.`
-              : 'This pane has not been told which kehikko it is on, so this cannot be answered honestly.'
+              : 'This container has not been told which kehikko it is on, so this cannot be answered honestly.'
           }
           onClick={() => onScope('here')}
         >
@@ -87,9 +87,9 @@ export function Bar({
           onto a second line. The same fact is in the note below when it
           matters. */}
       <span
-        className="ml-auto hidden shrink-0 text-[0.7rem] whitespace-nowrap text-muted-foreground @[260px]/pane:inline"
+        className="ml-auto hidden shrink-0 text-[0.7rem] whitespace-nowrap text-muted-foreground @[260px]/container:inline"
         title={
-          `This pane keeps the last ${keep} it has been shown. ` +
+          `This container keeps the last ${keep} it has been shown. ` +
           'Events are not history: one sent while this page was still loading was lost, and nothing resends it.'
         }
       >
@@ -99,13 +99,13 @@ export function Bar({
       {held > 0 && (
         <Button
           type="button"
-          size="pane"
+          size="container"
           variant="outline"
-          className={armed ? 'ml-auto text-blocked @[260px]/pane:ml-0' : 'ml-auto text-muted-foreground @[260px]/pane:ml-0'}
+          className={armed ? 'ml-auto text-blocked @[260px]/container:ml-0' : 'ml-auto text-muted-foreground @[260px]/container:ml-0'}
           title={
             armed
               ? `Press again to discard all ${held}. Nothing resends them.`
-              : 'Discard everything this pane holds. Takes two presses.'
+              : 'Discard everything this container holds. Takes two presses.'
           }
           onClick={onForget}
         >

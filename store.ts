@@ -35,7 +35,7 @@ import { z } from 'zod'
  *
  * A notification list that grows forever is a memory leak with a UI, and this
  * one has a second edge on it: the page draws the whole list, so an unbounded
- * store eventually becomes an unbounded DOM in a 280-pixel pane.
+ * store eventually becomes an unbounded DOM in a 280-pixel container.
  *
  * `KEEP` rows, and the OLDEST fall off. That direction is not arbitrary. This
  * panel is read newest-first and the interesting question is always "what just

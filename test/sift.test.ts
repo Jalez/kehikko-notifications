@@ -39,7 +39,7 @@ describe('all', () => {
     expect(out.unplaceable).toBe(0)
   })
 
-  test('is unaffected by not knowing where this pane is', () => {
+  test('is unaffected by not knowing where this container is', () => {
     const out = sift([row(HERE), row(THERE)], 'all', null)
     expect(out.rows).toHaveLength(2)
     expect(out.cannot).toBeNull()
@@ -47,7 +47,7 @@ describe('all', () => {
 })
 
 describe('this kehikko', () => {
-  test('keeps only what happened on the canvas this pane is standing on', () => {
+  test('keeps only what happened on the canvas this container is standing on', () => {
     const mine = row(HERE, 'mine')
     const out = sift([mine, row(THERE), row(THERE)], 'here', HERE)
     expect(out.rows).toHaveLength(1)
@@ -84,7 +84,7 @@ describe('when the filter cannot be honest', () => {
 
     /* The decision this module is here to get right. An empty list is a claim,
        and the claim would be false: it would say the canvas was quiet when the
-       truth is that this pane does not know which canvas it is on. */
+       truth is that this container does not know which canvas it is on. */
     expect(out.rows).toHaveLength(3)
     expect(out.cannot).toContain('cannot tell near from far')
   })
@@ -96,7 +96,7 @@ describe('when the filter cannot be honest', () => {
 
   test('nothing is counted as unplaceable, because nothing was placed', () => {
     const out = sift([row(null), row(HERE)], 'here', null)
-    /* Every row is unplaceable when the pane has no bearings, so a count would
+    /* Every row is unplaceable when the container has no bearings, so a count would
        be the length of the list said twice. */
     expect(out.unplaceable).toBe(0)
   })

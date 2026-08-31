@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils.ts'
  * `kehikko-checklist`'s copy of this file. There a badge holds one of three
  * fixed words and `whitespace-nowrap` is right. Here it holds a ref another
  * program chose the length of, and a badge that refuses to wrap is a badge that
- * sets a floor on the pane's width — which is the horizontal scrollbar this
+ * sets a floor on the container's width — which is the horizontal scrollbar this
  * whole stylesheet is written to avoid.
  */
 const badgeVariants = cva(

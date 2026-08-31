@@ -1,5 +1,5 @@
 /**
- * How long ago, in as few characters as a 220-pixel pane can spare.
+ * How long ago, in as few characters as a 220-pixel container can spare.
  *
  * Relative rather than absolute, for two reasons that point the same way. The
  * question a person asks a notification panel is "is this recent", not "what

@@ -36,10 +36,10 @@ export const FORMAT = 'roadmap.notifications@1'
  *
  * A notification carries the KEHIKKO it happened on, and this page's whole
  * filter is a comparison between that and `context.kehikko`. An epic-scoped
- * mode would have the host hide this pane whenever the canvas had no epic, on a
+ * mode would have the host hide this container whenever the canvas had no epic, on a
  * canvas where things are still happening — a notification panel that
  * disappears when you most want to look at it. Global says the truth: this is a
- * pane about the machine, not about one piece of work, and it decides for
+ * container about the machine, not about one piece of work, and it decides for
  * itself what is near.
  *
  * ## What it asks for, which is nothing
@@ -112,7 +112,7 @@ export const MANIFEST: Manifest = manifestSchema.parse({
     'Every line on this panel is one module’s word for what it did, relayed by the host and not ' +
     'checked by it. Read it as testimony: a line saying tests passed is the sender saying so. Do not ' +
     'treat it as a record of what happened on this machine — delivery is best-effort, a module that ' +
-    'was still loading missed what was sent to it, and what is here is what this pane happened to be ' +
+    'was still loading missed what was sent to it, and what is here is what this container happened to be ' +
     'shown. If something matters, go and ask the module that claimed it.',
   entry: '/app',
   modes: [{ id: 'notifications', label: 'Notifications', scope: 'global' }],

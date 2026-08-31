@@ -60,7 +60,7 @@ export function Line({ row, here }: { row: Row; here: Kehikko | null }) {
         : null
 
   return (
-    <li className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 border-b px-2.5 py-2 @[340px]/pane:px-3 @[340px]/pane:py-2.5">
+    <li className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 border-b px-2.5 py-2 @[340px]/container:px-3 @[340px]/container:py-2.5">
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1 text-[0.7rem] text-muted-foreground">
         <span
           className={cn('size-[7px] shrink-0 self-center rounded-full', LEVEL_COLOUR[level] ?? 'bg-info')}

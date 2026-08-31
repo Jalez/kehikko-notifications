@@ -22,7 +22,7 @@ import type { Kehikko, Row } from '../store.ts'
  * ## Two states and not three
  *
  * There is no "everything except here". It is not a thing anybody asked for,
- * and a third state on a control in a 220-pixel pane is a third state nobody
+ * and a third state on a control in a 220-pixel container is a third state nobody
  * reads. Two is what the user asked for, in their own words: all, or this
  * kehikko.
  */
@@ -44,7 +44,7 @@ export interface Sifted {
    * When it is set, `rows` is EVERYTHING rather than nothing. That is the
    * decision worth defending: an empty list is a claim, and the claim would be
    * false — it would say "nothing happened on this canvas" when the truth is
-   * "this pane does not know which canvas it is on". Showing everything and
+   * "this container does not know which canvas it is on". Showing everything and
    * saying so is the only honest pair. The alternative was tried in prose and
    * discarded in a sentence: a person looking at an empty notification panel
    * does not go looking for a filter, they conclude the machine is quiet.
@@ -72,7 +72,7 @@ export interface Sifted {
  * interesting here is a decision and a decision that needs a browser to test is
  * a decision that stops being tested.
  *
- * @param here Where this pane is standing, from `context.kehikko`. Null when
+ * @param here Where this container is standing, from `context.kehikko`. Null when
  *             the host said null, and null before any host has said anything —
  *             which are the same situation as far as this function is
  *             concerned and are told apart by the page, which knows whether it
@@ -85,7 +85,7 @@ export function sift(rows: readonly Row[], scope: Scope, here: Kehikko | null): 
     return {
       rows: [...rows],
       cannot:
-        'This pane has not been told which kehikko it is on, so it cannot tell near from far. ' +
+        'This container has not been told which kehikko it is on, so it cannot tell near from far. ' +
         'Everything it holds is shown below, which is the only honest answer — an empty list here would ' +
         'have said the canvas was quiet.',
       unplaceable: 0,

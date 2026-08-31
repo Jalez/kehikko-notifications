@@ -31,9 +31,9 @@ what arrived before its page existed, and the page says so rather than implying
 the machine was quiet.
 
 **The filter is a comparison, not a subscription.** Each event carries the
-kehikko it happened on; `context.kehikko` says the one this pane is standing on.
+kehikko it happened on; `context.kehikko` says the one this container is standing on.
 `src/sift.ts` compares them. Two states — all, or this kehikko — and when the
-host has told this pane no kehikko, the filter cannot be honest: it shows
+host has told this container no kehikko, the filter cannot be honest: it shows
 everything and says why, because an empty list would be a claim, and a false one.
 
 **`from` is the host's word; the contents are the sender's.** The host took the

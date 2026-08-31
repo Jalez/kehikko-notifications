@@ -25,7 +25,7 @@ import { connect, type Host } from './wire/host.ts'
  * **The greeting race.** The host greets on the frame's `load` event, which
  * fires before an application is necessarily ready — and a React page installs
  * its listeners in an effect, which runs strictly AFTER `load`. So the greeting
- * is posted and thrown away, and the pane reads "loaded its page and did not
+ * is posted and thrown away, and the container reads "loaded its page and did not
  * answer the host's greeting" with no hint anywhere that the greeting arrived
  * first. `wire/mailbox.ts` installs one listener at module scope, records
  * everything, and replays the backlog to each subscriber. It is imported for
@@ -107,7 +107,7 @@ export function App() {
       })
     } catch (error) {
       /* Loopback, to our own origin. A failure here is this app's own server
-         being gone, which nobody can act on from inside a pane, so it is
+         being gone, which nobody can act on from inside a container, so it is
          reported where whoever CAN act is looking. */
       console.warn('kehikko-notifications: could not reach this app’s own store.', error)
     }
@@ -185,14 +185,14 @@ export function App() {
       /**
        * A walk, declined — immediately, rather than left to the host's timeout.
        *
-       * This pane is a stream of what modules have said. It has no anchors and
+       * This container is a stream of what modules have said. It has no anchors and
        * nothing to scroll to, and the honest answer is available at once. A
        * module that let the backstop answer would turn a hundred milliseconds
-       * into a pane visibly doing nothing while a person waits for a press to
+       * into a container visibly doing nothing while a person waits for a press to
        * land somewhere.
        */
       onGoto: (_goto, answer) => {
-        answer(false, 'This pane is a stream of what modules have said. There is nothing in it to walk to.')
+        answer(false, 'This container is a stream of what modules have said. There is nothing in it to walk to.')
       },
     })
 
@@ -246,7 +246,7 @@ export function App() {
       />
 
       {sifted.cannot ? (
-        <p className="m-0 min-w-0 border-b px-2.5 py-2 text-[0.72rem] text-muted-foreground @[340px]/pane:px-3">
+        <p className="m-0 min-w-0 border-b px-2.5 py-2 text-[0.72rem] text-muted-foreground @[340px]/container:px-3">
           <strong className="font-semibold text-foreground">Showing everything. </strong>
           {greeted
             ? sifted.cannot
@@ -256,7 +256,7 @@ export function App() {
       ) : (
         scope === 'here' &&
         sifted.unplaceable > 0 && (
-          <p className="m-0 min-w-0 border-b px-2.5 py-2 text-[0.72rem] text-muted-foreground @[340px]/pane:px-3">
+          <p className="m-0 min-w-0 border-b px-2.5 py-2 text-[0.72rem] text-muted-foreground @[340px]/container:px-3">
             {sifted.unplaceable} more {sifted.unplaceable === 1 ? 'line' : 'lines'} happened while no kehikko was
             open, so they are neither here nor elsewhere. Switch to All to read them.
           </p>
@@ -266,7 +266,7 @@ export function App() {
       {sifted.rows.length === 0 ? (
         <div className="px-3 py-5 text-center text-muted-foreground [overflow-wrap:anywhere]">
           {held === 0
-            ? 'Nothing yet. Modules that emit notifications appear here as they do — and only while this pane is open, because events are not resent.'
+            ? 'Nothing yet. Modules that emit notifications appear here as they do — and only while this container is open, because events are not resent.'
             : `Nothing on ${here?.name || 'this kehikko'}. ${held} held from elsewhere.`}
         </div>
       ) : (

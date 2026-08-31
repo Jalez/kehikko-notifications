@@ -50,7 +50,7 @@ const PAGE_SHELL = `<!doctype html>
 <meta charset="utf-8">
 <!--
   The viewport, which matters even framed: without it a mobile browser assumes a
-  980px layout viewport and scales, which turns a 220px pane into something
+  980px layout viewport and scales, which turns a 220px container into something
   drawn at a third of its size.
 -->
 <meta name="viewport" content="width=device-width, initial-scale=1">

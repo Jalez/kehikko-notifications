@@ -9,7 +9,7 @@ import type { Row } from '../store.ts'
 /**
  * The two components that carry an argument, rendered for real.
  *
- * Not a screenshot test and not a substitute for one — the pane widths are
+ * Not a screenshot test and not a substitute for one — the container widths are
  * measured in a browser, because a container query has no meaning in
  * happy-dom. What these assert is the WORDS, and the words are where this
  * module's honesty lives: whether a claim is drawn as a claim, whether the
@@ -136,7 +136,7 @@ describe('the bar', () => {
   })
 
   test('nothing on this page announces the module’s own name', () => {
-    /* The host draws the pane header out of the manifest `summary`. A module
+    /* The host draws the container header out of the manifest `summary`. A module
        that drew its own name inside the frame would put two headings two inches
        apart saying the same thing in different words. */
     const { container } = bar()
