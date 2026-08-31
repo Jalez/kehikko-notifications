@@ -7,6 +7,31 @@ export const VERSION = '1.0.0'
 export const FORMAT = 'roadmap.notifications@1'
 
 /**
+ * The port this app would rather have. Named once, for the same reason as the
+ * line above, and against the same failure.
+ *
+ * 7910 used to be written twice — `--port "${PORT:-7910}"` at the bottom of
+ * `run.sh` and `Number(process.env.PORT ?? 7910)` in `register.ts` — with
+ * nothing keeping the two in step and a third copy sitting in
+ * `~/.roadmap/modules` from whenever somebody last ran the second. Two literals
+ * that must agree and nothing making them agree is exactly what `FORMAT` exists
+ * to prevent for the format string; the port had no such constant and drifted
+ * the same way.
+ *
+ * It lives in this file rather than in `vite.config.ts` because `register.ts`
+ * needs it too, and importing a Vite config to read one number would build the
+ * whole plugin list and mint this process's write ticket on the way to finding
+ * out what to write down.
+ *
+ * It is a PREFERENCE and not a promise. 7820 through 7960 belong to the other
+ * modules on this machine, and if something else holds 7910 when this starts
+ * then `serves()` moves to the next free port and rewrites the registration to
+ * match — see `roadmap-module-protocol/serve`. A host reads the registry, so the
+ * registry is what has to be true; this number is only where to start looking.
+ */
+export const PREFERRED_PORT = 7910
+
+/**
  * What this app says about itself when a host asks.
  *
  * ## `consumes`, and this time it does something

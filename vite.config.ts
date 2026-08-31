@@ -4,9 +4,11 @@ import { resolve } from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { WELL_KNOWN } from 'roadmap-module-protocol'
+import { serves } from 'roadmap-module-protocol/serve'
 import { defineConfig, type Plugin } from 'vite'
 
 import { MANIFEST, TICKET, answer } from './doors.ts'
+import { ID, PREFERRED_PORT } from './manifest.ts'
 import { page } from './page/document.ts'
 
 /**
@@ -197,10 +199,20 @@ export default defineConfig({
    */
   base: './',
   /*
-   * `doors()` first, so `/app` is claimed before Vite's own resolver can serve
+   * `serves()` first, because it decides the port in `config` and the whole
+   * server has to be built around whatever it claimed. It takes a free 7910 in
+   * silence, ends the start cleanly if this module is already answering there
+   * rather than making a second copy, and otherwise moves loudly to the next
+   * free port and rewrites the registration to the port the server ACTUALLY
+   * bound. `--strictPort` in `run.sh` used to mean the alternative: this app
+   * dying with `Error: Port 7910 is already in use` because of a program that
+   * has nothing to do with notifications. `PREFERRED_PORT` in `manifest.ts` is
+   * where the number is said, once.
+   *
+   * `doors()` next, so `/app` is claimed before Vite's own resolver can serve
    * `src/app.tsx` in its place — see the essay in `page/document.ts`.
    */
-  plugins: [doors(), react(), tailwindcss()],
+  plugins: [serves({ id: ID, prefer: PREFERRED_PORT }), doors(), react(), tailwindcss()],
   /*
    * The `@` alias, which points inside this repository and is a different thing
    * entirely from aliasing a dependency. It is what the shadcn components in
