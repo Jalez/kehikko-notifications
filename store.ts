@@ -257,18 +257,53 @@ export function record(event: {
 }
 
 /**
- * Forget everything.
+ * Forget everything, or forget exactly the rows named.
  *
  * Offered because a person has to be able to clear a panel they have read, and
  * a panel that can only be cleared by deleting a file is a panel with a
- * maintenance procedure. It empties the rows and does NOT reset `next`: a `seq`
- * that started again from 1 would collide with ids a page still had on screen,
- * and the page keys its rows by them.
+ * maintenance procedure. It does NOT reset `next` in either case: a `seq` that
+ * started again from 1 would collide with ids a page still had on screen, and
+ * the page keys its rows by them.
+ *
+ * ## Why it can now be told WHICH, and why the old call still means everything
+ *
+ * The button this served used to be in this app's own bar and meant one thing:
+ * discard the lot. The control has moved to the container header, where the
+ * host draws it out of `roadmap.clearable` — and the host's rule for that
+ * control is that it clears what is SHOWN, under whatever narrowing is in
+ * force. This module narrows by kehikko, so "shown" and "everything" are the
+ * same list on `all` and different lists on `here`.
+ *
+ * Only this module can tell those apart. The host cannot: it sees rows it does
+ * not render, in a document it cannot read, in a frame on another origin, and
+ * the protocol's `roadmap.clear` deliberately carries no ids for exactly that
+ * reason. So the page works out what it is showing and says so here.
+ *
+ * `seqs` omitted still means everything, and that is not laziness about an old
+ * signature. It is what the MCP door and any other caller have always meant by
+ * `/api/forget`, and a version that silently required a list would have turned
+ * "clear this panel" into "clear nothing" for every caller that had not been
+ * updated — which is the kind of change that produces a bug report reading "the
+ * button stopped working" six weeks later.
+ *
+ * Ids that name nothing are ignored rather than refused. A page's idea of what
+ * is on screen and the store's idea of what exists are two observations of the
+ * same thing at two moments, and a row trimmed by `KEEP` between the render and
+ * the press is not an error — it is a row that is already gone, which is what
+ * was being asked for.
  */
-export function forget(): number {
+export function forget(seqs?: readonly number[]): number {
   const held = read()
   const had = held.rows.length
-  held.rows = []
+  if (seqs === undefined) {
+    held.rows = []
+    write(held)
+    return had
+  }
+  /* A `Set`, because this is a list from a page against a list from a file and
+     the naive version is quadratic in the number of rows on screen. */
+  const going = new Set(seqs)
+  held.rows = held.rows.filter((row) => !going.has(row.seq))
   write(held)
-  return had
+  return had - held.rows.length
 }

@@ -165,4 +165,36 @@ describe('forgetting', () => {
     const reply = answer('POST', '/api/forget', {}, TICKET)
     expect(reply?.body).toMatchObject({ ok: true, forgotten: 2, held: 0 })
   })
+
+  /* What the page sends when it is honouring the host's clear control: the
+     seqs of the rows it actually drew, under whatever scope the header's filter
+     had it on. See `forget` in `store.ts`. */
+  test('a list of seqs forgets those and leaves the rest', () => {
+    answer('POST', '/api/notifications', body(), TICKET)
+    answer('POST', '/api/notifications', body(), TICKET)
+    const rows = (answer('GET', '/api/notifications', null, null)?.body as { rows: { seq: number }[] }).rows
+    const reply = answer('POST', '/api/forget', { seqs: [rows[0]!.seq] }, TICKET)
+    expect(reply?.body).toMatchObject({ ok: true, forgotten: 1, held: 1 })
+  })
+
+  /* Non-numbers are dropped rather than refusing the whole request: a clear
+     that half-worked is worse than one that skipped an id nothing matched, and
+     an id matching nothing is already the ordinary case for a row trimmed
+     between the render and the press. */
+  test('rubbish inside the list is dropped rather than refusing the press', () => {
+    answer('POST', '/api/notifications', body(), TICKET)
+    const rows = (answer('GET', '/api/notifications', null, null)?.body as { rows: { seq: number }[] }).rows
+    const reply = answer('POST', '/api/forget', { seqs: [rows[0]!.seq, 'x', null, {}] }, TICKET)
+    expect(reply?.body).toMatchObject({ ok: true, forgotten: 1, held: 0 })
+  })
+
+  /* But something that is not a list at all is a caller that has misunderstood
+     the door, and guessing at what they meant is how "clear one" becomes "clear
+     everything". */
+  test('and a seqs that is not a list is refused rather than guessed at', () => {
+    answer('POST', '/api/notifications', body(), TICKET)
+    expect(answer('POST', '/api/forget', { seqs: 12 }, TICKET)?.status).toBe(400)
+    const held = (answer('GET', '/api/notifications', null, null)?.body as { held: number }).held
+    expect(held).toBe(1)
+  })
 })

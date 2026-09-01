@@ -115,6 +115,57 @@ describe('forgetting', () => {
     forget()
     expect(record(event('b')).seq).toBe(2)
   })
+
+  /*
+   * Forgetting only what is SHOWN, which is what the host's clear control means
+   * and the reason this can now be told which rows to drop.
+   *
+   * That control is drawn in the container header beside the filter, and the
+   * two compose: "shown" is whatever the filter left. Only this module can
+   * answer what that is — the host sees rows it does not render, in a document
+   * it cannot read — so the page works the list out and names it here.
+   */
+  test('a list of seqs forgets exactly those and keeps the rest', async () => {
+    const { record, forget, list } = await store()
+    const a = record(event('a'))
+    const b = record(event('b'))
+    const c = record(event('c'))
+    expect(forget([a.seq, c.seq])).toBe(2)
+    expect(list().map((row) => row.seq)).toEqual([b.seq])
+  })
+
+  /* No list still means everything, which is what this has always meant and
+     what any caller that has not been updated still means by it. A version that
+     silently required a list would have turned "clear this panel" into "clear
+     nothing" for every one of them, with nothing erroring. */
+  test('and no list at all still means everything', async () => {
+    const { record, forget, list } = await store()
+    record(event('a'))
+    record(event('b'))
+    expect(forget()).toBe(2)
+    expect(list()).toEqual([])
+  })
+
+  /*
+   * Ids that name nothing are ignored rather than refused. A page's idea of
+   * what is on screen and the store's idea of what exists are two observations
+   * of one thing at two moments, and a row trimmed by `KEEP` between the render
+   * and the press is not an error — it is a row that is already gone, which is
+   * what was being asked for.
+   */
+  test('an id that matches nothing is not an error', async () => {
+    const { record, forget, list } = await store()
+    const a = record(event('a'))
+    expect(forget([a.seq, 9999])).toBe(1)
+    expect(list()).toEqual([])
+  })
+
+  test('and an empty list forgets nothing at all', async () => {
+    const { record, forget, list } = await store()
+    record(event('a'))
+    expect(forget([])).toBe(0)
+    expect(list()).toHaveLength(1)
+  })
 })
 
 describe('a store that will not parse', () => {

@@ -52,6 +52,29 @@ other. The old key is deleted on load and deliberately not migrated — migratin
 one browser-wide answer into every container on every canvas is the bug, written
 down permanently.
 
+**And so is the way to discard them.** `Forget` and the `N held` count beside it
+were the last two things in this page's own strip, and the strip is gone with
+them — thirty-one pixels of chrome given back, in a container that is routinely
+220 wide and under 300 tall. This module sends `roadmap.clearable` with a label
+in its own words (`forget 12 shown`), the host draws one button beside the
+filter, and the second press comes back as `roadmap.clear`. The host learns
+nothing: that message carries no ids, no count and no answer, because the host
+sees rows it does not render in a document it cannot read.
+
+What goes is **what is on screen**, which is what makes the two header controls
+compose — narrow to this kehikko, press clear, and this kehikko's lines go. That
+is a real change from the old button, which always meant everything whatever the
+filter said; a position that was never argued for so much as inherited from a bar
+that could not see the filter. On `all` the two behave identically. On `this
+kehikko` the new one is narrower, and somebody who wants the lot presses *Show
+everything* in the filter first. The reverse — a button that quietly deletes more
+than it says it will — has no such recovery.
+
+`held` and `keep` survive, on the empty-state line, and that is not sentiment:
+`held` counts the STORE while the new label counts the SCREEN, so "nothing has
+happened" and "nothing has happened *here*, and eleven things happened
+elsewhere" go on reading differently.
+
 **`from` is the host's word; the contents are the sender's.** The host took the
 sender's id from its own registry, so no module can post under another's name.
 Nobody checked whether the sentence is true. Every row is therefore drawn as

@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { cleanup, render, screen } from '@testing-library/react'
 
-import { Bar } from '../src/view/bar.tsx'
 import { Line } from '../src/view/line.tsx'
 import { ago } from '../src/view/ago.ts'
 import type { Row } from '../store.ts'
@@ -91,54 +90,23 @@ describe('a row is drawn as testimony', () => {
   })
 })
 
-describe('the bar', () => {
-  const bar = (over: Partial<Parameters<typeof Bar>[0]> = {}) =>
-    render(<Bar held={4} keep={2000} armed={false} onForget={() => {}} {...over} />)
+/**
+ * The bar is gone, and this is what stands where its tests did.
+ *
+ * It held a filter, then — once the filter moved to the container header over
+ * `roadmap.filters` — a `Forget` button and an `N held` count, in a fixed strip
+ * of chrome at the top of a container that is routinely 220 pixels wide and
+ * under 300 tall. Both of those have now moved to the header too, over
+ * `roadmap.clearable`, and there was nothing else in the row.
+ *
+ * The component and its tests are deleted rather than kept as a "renders
+ * nothing" case, because there is no longer a component for anybody to bring
+ * back by accident — a stray import would not compile. What survived the move
+ * is tested where it now lives: which rows a press discards is `store.test.ts`
+ * and `doors.test.ts`, and what the control is called is the host's
+ * `test/clearing.test.ts`, since the host is what draws it.
+ */
 
-  /*
-   * The filter is not drawn here any more. It is offered to the host over
-   * `roadmap.filters` and drawn as one button in the container header, which is
-   * the whole point of the change: this row was a fixed strip of chrome at the
-   * top of a container that is routinely 220 pixels wide.
-   *
-   * The test is here rather than deleted, because "the module stopped drawing
-   * it" is exactly what somebody would undo by accident while adding a control
-   * to this bar.
-   */
-  test('the filter is not on this page: it is offered to the host', () => {
-    bar()
-    expect(screen.queryByRole('button', { name: 'All' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'This kehikko' })).toBeNull()
-  })
-
-  test('forget takes two presses, and the second one says what it will do', () => {
-    bar({ armed: true })
-    const forget = screen.getByRole('button', { name: 'Sure?' })
-    /* Not a `confirm()`: the sandbox has no `allow-modals`, so `confirm()`
-       returns false silently and the button would never work at all. */
-    expect(forget.getAttribute('title')).toContain('Press again')
-  })
-
-  /*
-   * And with the filter gone there is nothing else in the row, so the row goes
-   * too. It could not before — a filter is a thing you may want to press before
-   * there is anything to filter — and an empty container was spending
-   * thirty-one pixels on a bordered strip with nothing in it.
-   */
-  test('nothing held means no bar at all, not an empty one', () => {
-    const { container } = bar({ held: 0 })
-    expect(screen.queryByRole('button', { name: 'Forget' })).toBeNull()
-    expect(container.querySelector('.sticky')).toBeNull()
-  })
-
-  test('nothing on this page announces the module’s own name', () => {
-    /* The host draws the container header out of the manifest `summary`. A module
-       that drew its own name inside the frame would put two headings two inches
-       apart saying the same thing in different words. */
-    const { container } = bar()
-    expect(container.textContent).not.toContain('Notifications')
-  })
-})
 
 describe('how long ago', () => {
   const at = '2026-08-28T09:00:00.000Z'

@@ -1,5 +1,5 @@
 import { ID, MANIFEST, VERSION } from './manifest.ts'
-import { forget, list, record, standing, type Kehikko } from './store.ts'
+import { KEEP, forget, list, record, standing, type Kehikko } from './store.ts'
 
 /**
  * Every door this app answers on that is not the page itself.
@@ -192,8 +192,36 @@ export function answer(
       return ok({ ok: true, row, ...standing() })
     }
 
+    /*
+     * Discard rows: the ones named, or all of them.
+     *
+     * `seqs` arrives when the page is honouring the host's clear control, which
+     * clears what is SHOWN — and what "shown" means is a question only this
+     * module can answer, since it is the one that narrowed the list. See
+     * `forget` in `store.ts`, and the protocol's `roadmap.clear` on why the
+     * message that starts all this carries no ids at all.
+     *
+     * No `seqs` still means everything, which is what this door has always
+     * meant and what any caller that has not been updated still means.
+     *
+     * The list is bounded at `KEEP` before it reaches the store: nothing beyond
+     * that many rows can exist, so a longer one is either a mistake or somebody
+     * making this door do work proportional to whatever they can type.
+     * Non-numbers are dropped rather than refusing the whole request, because a
+     * clear that half-worked is worse than one that skipped an id nothing
+     * matched — and an id matching nothing is already the ordinary case, for a
+     * row trimmed between the render and the press.
+     */
     if (path === '/api/forget') {
-      return ok({ ok: true, forgotten: forget(), ...standing() })
+      const asked = body.seqs
+      if (asked === undefined || asked === null) {
+        return ok({ ok: true, forgotten: forget(), ...standing() })
+      }
+      if (!Array.isArray(asked)) return bad('seqs has to be a list of row numbers')
+      const seqs = asked
+        .filter((one): one is number => typeof one === 'number' && Number.isFinite(one))
+        .slice(0, KEEP)
+      return ok({ ok: true, forgotten: forget(seqs), ...standing() })
     }
 
     return bad('no such door here', 404)

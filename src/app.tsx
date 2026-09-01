@@ -5,7 +5,6 @@ import { connect, type Connection } from 'roadmap-module-protocol/client'
 import { ID } from '../manifest.ts'
 import type { Kehikko, Row } from '../store.ts'
 import { OFFER, scopeFrom, sift, type Scope } from './sift.ts'
-import { Bar } from './view/bar.tsx'
 import { Line } from './view/line.tsx'
 
 /**
@@ -127,9 +126,26 @@ export function App() {
   const [scope, setScope] = useState<Scope>('all')
   const [here, setHere] = useState<Kehikko | null>(null)
   const [greeted, setGreeted] = useState(false)
-  const [armed, setArmed] = useState(false)
 
   const host = useRef<Connection | null>(null)
+  /**
+   * The `seq` of every row currently on screen, as of the last render.
+   *
+   * A ref rather than state, and it exists for one reason: `onClear` is
+   * registered once, in the connection effect, and a press has to act on what
+   * is showing NOW rather than on what was showing when that effect ran.
+   * Reading it through a ref is the same trick `host` uses on the line above,
+   * for the same reason — the connection must not be rebuilt every time a row
+   * arrives.
+   *
+   * This is the whole of what makes the host's clear control compose with the
+   * host's filter control. What arrives from the host is a press with nothing
+   * in it; WHICH rows go is decided here, out of the list this page actually
+   * drew, under whatever scope the filter had it on. A page that answered
+   * `onClear` by emptying its store would delete everything while somebody
+   * could see three lines.
+   */
+  const showing = useRef<number[]>([])
   const TICKET = useRef<string>('')
   if (!TICKET.current) TICKET.current = ticket()
 
@@ -250,6 +266,48 @@ export function App() {
       onGoto: (_goto, answer) => {
         answer(false, 'This container is a stream of what modules have said. There is nothing in it to walk to.')
       },
+
+      /**
+       * The host's delete control, pressed twice.
+       *
+       * ## What goes is exactly what is on screen
+       *
+       * `showing` holds the `seq` of every row this page last drew, under
+       * whatever scope the header's filter has it on. That is the whole of the
+       * design: the host sends a press with no ids in it, because it sees rows
+       * it does not render in a document it cannot read, and only this module
+       * can answer what "shown" means.
+       *
+       * So a person on `this kehikko` who presses clear discards this kehikko's
+       * lines and keeps the rest, and the same person on `all` discards
+       * everything. Both are what the control says it will do, because the
+       * label counts the same list this sends.
+       *
+       * ## What this changes about `Forget`, said out loud
+       *
+       * The button this replaces sat in this app's own bar and always meant
+       * everything, whatever the filter was on. That was not a considered
+       * position so much as the state of things before the filter moved to the
+       * header: the bar could not see the filter and the filter could not see
+       * the bar.
+       *
+       * The behaviour on `all` is identical. On `this kehikko` it is now
+       * narrower, and narrower is the correct reading of a control that sits
+       * beside the filter and counts what the filter left. Somebody who wants
+       * the lot presses `Show everything` in the filter first, which is one
+       * press and is visible on screen; the reverse — a button that quietly
+       * deletes more than it says — has no such recovery.
+       *
+       * ## No guard here, deliberately
+       *
+       * The two presses happen on the host's side of the frame, where they can
+       * be drawn. A `confirm()` here would return `false` silently under the
+       * host's sandbox and this would simply never run — the failure that cost
+       * the checklist module an afternoon, and the reason the arm is the host's.
+       */
+      onClear: () => {
+        void post('/api/forget', { seqs: showing.current }).then(refresh)
+      },
     },
     /* 900ms, which is this module's own number and not the client's 500. The
        option exists so adoption keeps each module's timing rather than
@@ -299,30 +357,45 @@ export function App() {
     }
   }, [post, refresh])
 
-  const forget = useCallback(() => {
-    setArmed((was) => {
-      if (was) {
-        void post('/api/forget', {}).then(refresh)
-        return false
-      }
-      return true
-    })
-  }, [post, refresh])
-
-  /* Disarmed on a timer, so a button left reading "Sure?" does not sit there
-     until somebody presses it by accident half an hour later. */
-  useEffect(() => {
-    if (!armed) return
-    const timer = window.setTimeout(() => setArmed(false), 4000)
-    return () => window.clearTimeout(timer)
-  }, [armed])
-
   const sifted = sift(rows, scope, here)
+
+  /*
+   * What is on screen, kept where the wire can read it, and announced.
+   *
+   * Written during render rather than in an effect, so that a press arriving
+   * between a render and its effects acts on the list that was drawn rather
+   * than on the one before it. There is nothing to clean up and nothing anybody
+   * else reads, so the usual objection to writing a ref in render does not
+   * apply — and a delete acting on a stale list is not a stale list, it is the
+   * wrong rows.
+   */
+  showing.current = sifted.rows.map((row) => row.seq)
+
+  /*
+   * The offer, re-announced whenever the count changes.
+   *
+   * Unlike the filter offer — announced once, because its two words never move
+   * — this label carries a NUMBER, and the number is the whole reason a person
+   * reads the control before pressing it. It is how they discover that their
+   * filter has narrowed things to three rather than thirty, which is the
+   * difference between the press they meant and the press they did not.
+   *
+   * `null` when there is nothing on screen, which withdraws the control. A
+   * delete button that deletes nothing teaches a person that the button does
+   * not work, and they will remember that on the day it would have.
+   *
+   * The word is this module's own. The host quotes it and does not paraphrase
+   * it — it has no idea what is being counted — so `forget` stays the verb this
+   * app has always used for this, and it now appears in a tooltip in the
+   * container header instead of on a button in a bar.
+   */
+  const count = sifted.rows.length
+  useEffect(() => {
+    host.current?.clearable(count === 0 ? null : `forget ${count} shown`)
+  }, [count])
 
   return (
     <div className="flex min-h-screen min-w-0 flex-col">
-      <Bar held={held} keep={keep} armed={armed} onForget={forget} />
-
       {sifted.cannot ? (
         <p className="m-0 min-w-0 border-b px-2.5 py-2 text-[0.72rem] text-muted-foreground @[340px]/container:px-3">
           <strong className="font-semibold text-foreground">Showing everything. </strong>
@@ -341,8 +414,32 @@ export function App() {
         )
       )}
 
+      {/*
+        The empty state, and the one place `held` and `keep` still appear.
+
+        The bar above this used to show "N held" beside a Forget button, and
+        both are gone — the count went into the label of the host's delete
+        control, which counts what is SHOWN and is a better number for a person
+        about to press something. But `held` counts what is in the STORE, which
+        is a different fact and is load-bearing exactly here: a container
+        narrowed to a quiet kehikko is empty for two entirely different reasons,
+        and "nothing has happened" and "nothing has happened HERE, and eleven
+        things happened elsewhere" must not read the same.
+
+        `keep` was the bar's tooltip — how many this container holds before the
+        oldest fall off — and it moves onto the same line rather than being
+        dropped with the component it happened to live in. Nothing else on this
+        page says it, and a person who has just been told eleven lines are held
+        elsewhere is the person most likely to wonder how many can be.
+      */}
       {sifted.rows.length === 0 ? (
-        <div className="px-3 py-5 text-center text-muted-foreground [overflow-wrap:anywhere]">
+        <div
+          className="px-3 py-5 text-center text-muted-foreground [overflow-wrap:anywhere]"
+          title={
+            `This container keeps the last ${keep} it has been shown. ` +
+            'Events are not history: one sent while this page was still loading was lost, and nothing resends it.'
+          }
+        >
           {held === 0
             ? 'Nothing yet. Modules that emit notifications appear here as they do — and only while this container is open, because events are not resent.'
             : `Nothing on ${here?.name || 'this kehikko'}. ${held} held from elsewhere.`}
