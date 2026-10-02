@@ -254,7 +254,7 @@ export const NOWHERE =
  * somebody's notifications into a directory it then deletes.
  */
 export function legacyDir(): string {
-  return process.env.NOTIFICATIONS_DATA ?? join(HERE, 'data')
+  return process.env.NOTIFICATIONS_DATA ?? join(HERE, 'data') // kehikot-storage: allow pre-.kehikot location, read only to migrate it
 }
 
 /**
