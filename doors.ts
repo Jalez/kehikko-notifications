@@ -1,5 +1,5 @@
 import { ID, MANIFEST, VERSION } from './manifest.ts'
-import { KEEP, forget, list, record, standing, type Kehikko } from './store.ts'
+import { KEEP, forget, record, standing, type Kehikko } from './store.ts'
 
 /**
  * Every door this app answers on that is not the page itself.
@@ -55,6 +55,8 @@ const MAX_REF = 200
 const MAX_REFS = 64
 const MAX_AT = 40
 const MAX_NAME = 200
+/** As long as a path may be, matching the protocol's own `LIMITS.PATH`. */
+const MAX_PROJECT = 4096
 
 function str(value: unknown, max: number): string {
   if (typeof value !== 'string') return ''
@@ -136,14 +138,25 @@ export function answer(
   path: string,
   body: Record<string, unknown> | null,
   ticket: string | null,
+  query: URLSearchParams = new URLSearchParams(),
 ): Reply | null {
+  /* No project here, deliberately: a health check is about this program, and
+     which project's store is how full is not a question it can answer. */
   if (path === '/healthz') {
-    const held = standing()
-    return ok({ ok: true, id: ID, version: VERSION, held: held.held, keep: held.keep })
+    return ok({ ok: true, id: ID, version: VERSION, keep: KEEP })
   }
 
+  /*
+   * One project's list. The project is a query parameter because a GET has no
+   * body; the page takes it off `roadmap.context.projectPath`.
+   *
+   * No project, or a refused one, is still a 200 — with `nowhere` or `trouble`
+   * saying which — because the page has to draw that state rather than treat
+   * it as this server being down. Reads are never refused for want of a
+   * ticket; see `TICKET`.
+   */
   if (path === '/api/notifications' && method === 'GET') {
-    return ok({ ok: true, rows: list(), ...standing() })
+    return ok({ ok: true, ...standing(projectOf(query.get('project'))) })
   }
 
   if (method === 'POST' && path.startsWith('/api/')) {
@@ -164,12 +177,14 @@ export function answer(
      * a notification panel whose whole job is attribution must not hold a line
      * it cannot attribute.
      */
+    const project = projectOf(body.project)
+
     if (path === '/api/notifications') {
       const from = str(body.from, MAX_ID).trim()
       if (!from) return bad('a notification with nobody to attribute it to is not one')
       const payload = (body.payload ?? {}) as Record<string, unknown>
       const at = str(body.at, MAX_AT).trim()
-      const row = record({
+      const done = record(project, {
         from,
         /* The host's `at` when there is one, and this app's clock only as a
            last resort. A row stamped by the receiver would be ordered by this
@@ -189,7 +204,10 @@ export function answer(
             : {}),
         },
       })
-      return ok({ ok: true, row, ...standing() })
+      /* 409 for "no project" and for a refused one: the request was fine, the
+         state of the world is what stops it, and the sentence says which. */
+      if (!done.ok) return bad(done.error, 409)
+      return ok({ ok: true, row: done.value, ...standing(project) })
     }
 
     /*
@@ -214,14 +232,15 @@ export function answer(
      */
     if (path === '/api/forget') {
       const asked = body.seqs
-      if (asked === undefined || asked === null) {
-        return ok({ ok: true, forgotten: forget(), ...standing() })
+      if (asked !== undefined && asked !== null && !Array.isArray(asked)) {
+        return bad('seqs has to be a list of row numbers')
       }
-      if (!Array.isArray(asked)) return bad('seqs has to be a list of row numbers')
-      const seqs = asked
-        .filter((one): one is number => typeof one === 'number' && Number.isFinite(one))
-        .slice(0, KEEP)
-      return ok({ ok: true, forgotten: forget(seqs), ...standing() })
+      const seqs = Array.isArray(asked)
+        ? asked.filter((one): one is number => typeof one === 'number' && Number.isFinite(one)).slice(0, KEEP)
+        : undefined
+      const done = forget(project, seqs)
+      if (!done.ok) return bad(done.error, 409)
+      return ok({ ok: true, forgotten: done.value, ...standing(project) })
     }
 
     return bad('no such door here', 404)
@@ -232,6 +251,17 @@ export function answer(
   }
 
   return null
+}
+
+/**
+ * The project a caller named, bounded, or null for none.
+ *
+ * Only bounded here; resolving it and fencing what is under it is the store's
+ * job, because the store is where the filesystem is.
+ */
+function projectOf(value: unknown): string | null {
+  const named = str(value, MAX_PROJECT).trim()
+  return named || null
 }
 
 export { MANIFEST }

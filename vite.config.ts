@@ -89,7 +89,7 @@ function doors(): Plugin {
            everything else. */
         void body(request)
           .then((parsed) => {
-            const reply = answer(method, path, parsed, readTicket(request.headers['x-notifications-ticket']))
+            const reply = answer(method, path, parsed, readTicket(request.headers['x-notifications-ticket']), url.searchParams)
             if (!reply) return next()
             send(reply.status, reply.body)
           })

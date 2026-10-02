@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -15,11 +15,19 @@ import { MANIFEST, FORMAT } from '../manifest.ts'
  */
 
 let dir: string
+let project: string
 
+/* A project per test, because the store lives inside one. `NOTIFICATIONS_DATA`
+   is where the OLD store is looked for, pointed somewhere empty so no test can
+   adopt this repository's real `data/`. */
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'notifications-doors-'))
-  process.env.NOTIFICATIONS_DATA = dir
+  dir = realpathSync(mkdtempSync(join(tmpdir(), 'notifications-doors-')))
+  project = join(dir, 'project')
+  mkdirSync(project)
+  process.env.NOTIFICATIONS_DATA = join(dir, 'legacy')
 })
+
+const q = () => new URLSearchParams({ project })
 
 afterEach(() => {
   delete process.env.NOTIFICATIONS_DATA
@@ -27,6 +35,7 @@ afterEach(() => {
 })
 
 const body = (over: Record<string, unknown> = {}) => ({
+  project,
   from: 'roadmap.checklist',
   at: '2026-08-28T09:00:00.000Z',
   kehikko: { id: 1, name: 'workbench' },
@@ -57,17 +66,23 @@ describe('the manifest', () => {
 })
 
 describe('reading', () => {
-  test('healthz says what is held and what the cap is', () => {
+  test('healthz says who this is and what the cap is, and nothing about any project', () => {
     const reply = answer('GET', '/healthz', null, null)
     expect(reply?.status).toBe(200)
-    expect(reply?.body).toMatchObject({ ok: true, id: 'roadmap.notifications', held: 0 })
+    expect(reply?.body).toMatchObject({ ok: true, id: 'roadmap.notifications', keep: 2000 })
+  })
+
+  test('with no project the list says "nowhere" rather than "empty"', () => {
+    const reply = answer('GET', '/api/notifications', null, null)
+    expect(reply?.status).toBe(200)
+    expect(reply?.body).toMatchObject({ ok: true, rows: [], nowhere: true })
   })
 
   test('the list is readable without a ticket', () => {
     /* What is here is a copy of things other modules already said out loud on a
        canvas. Gating reads would mean an agent's curl needing a ticket to see a
        page it can already open. */
-    const reply = answer('GET', '/api/notifications', null, null)
+    const reply = answer('GET', '/api/notifications', null, null, q())
     expect(reply?.status).toBe(200)
     expect(reply?.body).toMatchObject({ ok: true, rows: [] })
   })
@@ -92,11 +107,21 @@ describe('writing', () => {
 
   test('a write with the ticket is recorded and comes back on the list', () => {
     expect(answer('POST', '/api/notifications', body(), TICKET)?.status).toBe(200)
-    const reply = answer('GET', '/api/notifications', null, null)
+    const reply = answer('GET', '/api/notifications', null, null, q())
     const rows = (reply?.body as { rows: { from: string; payload: { message: string } }[] }).rows
     expect(rows).toHaveLength(1)
     expect(rows[0]!.from).toBe('roadmap.checklist')
     expect(rows[0]!.payload.message).toBe('the tests passed')
+  })
+
+  test('a write with no project is refused with a sentence, not kept somewhere guessed', () => {
+    const reply = answer('POST', '/api/notifications', body({ project: undefined }), TICKET)
+    expect(reply?.status).toBe(409)
+    expect((reply?.body as { error: string }).error).toContain('no project is open')
+  })
+
+  test('forget with no project is refused too', () => {
+    expect(answer('POST', '/api/forget', {}, TICKET)?.status).toBe(409)
   })
 
   test('a notification with nobody to attribute it to is refused, not stored as unknown', () => {
@@ -109,13 +134,13 @@ describe('writing', () => {
 
   test('a null kehikko is accepted, because a host need not have canvases', () => {
     expect(answer('POST', '/api/notifications', body({ kehikko: null }), TICKET)?.status).toBe(200)
-    const rows = (answer('GET', '/api/notifications', null, null)?.body as { rows: { kehikko: unknown }[] }).rows
+    const rows = (answer('GET', '/api/notifications', null, null, q())?.body as { rows: { kehikko: unknown }[] }).rows
     expect(rows[0]!.kehikko).toBeNull()
   })
 
   test('a malformed kehikko becomes null rather than a refusal or a guess', () => {
     answer('POST', '/api/notifications', body({ kehikko: { id: 'three', name: 'workbench' } }), TICKET)
-    const rows = (answer('GET', '/api/notifications', null, null)?.body as { rows: { kehikko: unknown }[] }).rows
+    const rows = (answer('GET', '/api/notifications', null, null, q())?.body as { rows: { kehikko: unknown }[] }).rows
     /* Guessing "this one" would put a stranger's line under the reader's own
        canvas, which is the one thing the filter must never do. */
     expect(rows[0]!.kehikko).toBeNull()
@@ -125,7 +150,7 @@ describe('writing', () => {
 describe('nothing arriving is unbounded', () => {
   test('an enormous message is cut rather than stored whole', () => {
     answer('POST', '/api/notifications', body({ payload: { message: 'x'.repeat(1_000_000), epic: '' } }), TICKET)
-    const rows = (answer('GET', '/api/notifications', null, null)?.body as {
+    const rows = (answer('GET', '/api/notifications', null, null, q())?.body as {
       rows: { payload: { message: string } }[]
     }).rows
     expect(rows[0]!.payload.message.length).toBeLessThanOrEqual(4000)
@@ -138,7 +163,7 @@ describe('nothing arriving is unbounded', () => {
       body({ payload: { message: 'many', epic: '', refs: Array.from({ length: 10_000 }, (_, i) => `gh#${i}`) } }),
       TICKET,
     )
-    const rows = (answer('GET', '/api/notifications', null, null)?.body as {
+    const rows = (answer('GET', '/api/notifications', null, null, q())?.body as {
       rows: { payload: { refs: string[] } }[]
     }).rows
     /* The per-item bound stops one enormous string; the list bound stops ten
@@ -148,7 +173,7 @@ describe('nothing arriving is unbounded', () => {
 
   test('an enormous sender id is cut rather than stored whole', () => {
     answer('POST', '/api/notifications', body({ from: 'm'.repeat(50_000) }), TICKET)
-    const rows = (answer('GET', '/api/notifications', null, null)?.body as { rows: { from: string }[] }).rows
+    const rows = (answer('GET', '/api/notifications', null, null, q())?.body as { rows: { from: string }[] }).rows
     expect(rows[0]!.from.length).toBeLessThanOrEqual(128)
   })
 })
@@ -156,13 +181,13 @@ describe('nothing arriving is unbounded', () => {
 describe('forgetting', () => {
   test('forget needs the ticket too', () => {
     answer('POST', '/api/notifications', body(), TICKET)
-    expect(answer('POST', '/api/forget', {}, null)?.status).toBe(403)
+    expect(answer('POST', '/api/forget', { project }, null)?.status).toBe(403)
   })
 
   test('forget empties it and says how many went', () => {
     answer('POST', '/api/notifications', body(), TICKET)
     answer('POST', '/api/notifications', body(), TICKET)
-    const reply = answer('POST', '/api/forget', {}, TICKET)
+    const reply = answer('POST', '/api/forget', { project }, TICKET)
     expect(reply?.body).toMatchObject({ ok: true, forgotten: 2, held: 0 })
   })
 
@@ -172,8 +197,8 @@ describe('forgetting', () => {
   test('a list of seqs forgets those and leaves the rest', () => {
     answer('POST', '/api/notifications', body(), TICKET)
     answer('POST', '/api/notifications', body(), TICKET)
-    const rows = (answer('GET', '/api/notifications', null, null)?.body as { rows: { seq: number }[] }).rows
-    const reply = answer('POST', '/api/forget', { seqs: [rows[0]!.seq] }, TICKET)
+    const rows = (answer('GET', '/api/notifications', null, null, q())?.body as { rows: { seq: number }[] }).rows
+    const reply = answer('POST', '/api/forget', { project, seqs: [rows[0]!.seq] }, TICKET)
     expect(reply?.body).toMatchObject({ ok: true, forgotten: 1, held: 1 })
   })
 
@@ -183,8 +208,8 @@ describe('forgetting', () => {
      between the render and the press. */
   test('rubbish inside the list is dropped rather than refusing the press', () => {
     answer('POST', '/api/notifications', body(), TICKET)
-    const rows = (answer('GET', '/api/notifications', null, null)?.body as { rows: { seq: number }[] }).rows
-    const reply = answer('POST', '/api/forget', { seqs: [rows[0]!.seq, 'x', null, {}] }, TICKET)
+    const rows = (answer('GET', '/api/notifications', null, null, q())?.body as { rows: { seq: number }[] }).rows
+    const reply = answer('POST', '/api/forget', { project, seqs: [rows[0]!.seq, 'x', null, {}] }, TICKET)
     expect(reply?.body).toMatchObject({ ok: true, forgotten: 1, held: 0 })
   })
 
@@ -193,8 +218,8 @@ describe('forgetting', () => {
      everything". */
   test('and a seqs that is not a list is refused rather than guessed at', () => {
     answer('POST', '/api/notifications', body(), TICKET)
-    expect(answer('POST', '/api/forget', { seqs: 12 }, TICKET)?.status).toBe(400)
-    const held = (answer('GET', '/api/notifications', null, null)?.body as { held: number }).held
+    expect(answer('POST', '/api/forget', { project, seqs: 12 }, TICKET)?.status).toBe(400)
+    const held = (answer('GET', '/api/notifications', null, null, q())?.body as { held: number }).held
     expect(held).toBe(1)
   })
 })

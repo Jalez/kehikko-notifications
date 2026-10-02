@@ -30,6 +30,24 @@ oldest falling off, and what it shows survives a reload. What it cannot show is
 what arrived before its page existed, and the page says so rather than implying
 the machine was quiet.
 
+**The store lives in the project.** One file per project, at
+`<project>/.kehikot/notifications/notifications.json`, named by the
+`roadmap-module-protocol` helpers like every other module's. The page learns the
+project from `roadmap.context.projectPath` and sends it with every read and
+write. With no project open there is nowhere to keep anything: the page says so,
+writes are refused with a sentence, and nothing falls back to a folder beside
+this program. Whether `.kehikot/` is committed is the host's per-project
+setting, not this module's.
+
+The old single store, `data/notifications.json` beside this program, is moved
+whole into the first project that opens without a store of its own (its rows
+keep the canvas they happened on, so the filter still separates them), and
+`data/` is removed once empty. It is not split between projects: a row names
+its canvas by the host's runtime id and a display name, neither of which a
+project's own record of its canvases can be matched against without guessing.
+An existing project store is never overwritten. `NOTIFICATIONS_DATA` now only
+moves where that old file is looked for, which is what the tests use it for.
+
 **The filter is a comparison, not a subscription.** Each event carries the
 kehikko it happened on; `context.kehikko` says the one this container is standing on.
 `src/sift.ts` compares them. Two states — all, or this kehikko — and when the
