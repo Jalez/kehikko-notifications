@@ -14,9 +14,8 @@ node_modules
 # spent on a stale `dist` answering 200.
 dist
 
-# This app's own store: every notification it has been shown. Unlike the other
-# modules here there is no `seed/` beside it and there must not be — a
-# notification panel that shipped with notifications in it would be a program
-# telling somebody things happened on their machine that did not. An empty first
-# screen is the true one, and the page says so in words.
+# The OLD store, from before notifications lived inside each project at
+# `.kehikot/notifications/`. A checkout that ran the old version still has one
+# here until the first project opens and adopts it (see `adopt` in `store.ts`),
+# and until then it is somebody's notifications and must not be committed.
 data

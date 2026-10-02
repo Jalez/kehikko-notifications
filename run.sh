@@ -28,8 +28,9 @@
 #   - `exec`, and the foreground. A script that forks and returns leaves whoever
 #     started it holding a pid that stops nothing, and Stop is only ever offered
 #     for what a host started.
-#   - `cd` to this script's own directory, so the app's store is beside the
-#     program however it was invoked.
+#   - `cd` to this script's own directory, so the program runs from where it
+#     lives however it was invoked. (The store is not here: it is inside each
+#     project, at `.kehikot/notifications/`.)
 #
 # It does NOT register a module that had none. Registration is a deliberate act
 # by a person — see `register.ts` — and a start script that quietly wrote into

@@ -13,11 +13,13 @@ import { Line } from './view/line.tsx'
  *
  * ## The order everything happens in
  *
- * 1. Read the store. The page draws fully from this alone, with no host
- *    anywhere, which is the test of whether this is an app or a panel.
- * 2. Connect. The mailbox replays whatever already arrived, so a greeting that
+ * 1. Connect. The mailbox replays whatever already arrived, so a greeting that
  *    landed before React mounted is not lost.
- * 3. Re-read the store whenever an event lands.
+ * 2. Read the store of the project the greeting names. The store lives inside
+ *    that project (`.kehikot/notifications/`), so with no project — a page
+ *    opened directly on this port, or a canvas with none — there is nothing to
+ *    read, and the page says so rather than drawing an empty list.
+ * 3. Re-read the store whenever an event lands, and whenever the project moves.
  *
  * ## The two bugs every module in this family has hit
  *
@@ -103,6 +105,8 @@ interface Standing {
   rows?: unknown
   held?: unknown
   keep?: unknown
+  nowhere?: unknown
+  trouble?: unknown
 }
 
 export function App() {
@@ -126,6 +130,20 @@ export function App() {
   const [scope, setScope] = useState<Scope>('all')
   const [here, setHere] = useState<Kehikko | null>(null)
   const [greeted, setGreeted] = useState(false)
+  /**
+   * Which project's store this page is reading — `roadmap.context.projectPath`
+   * as the host last said, or null for none.
+   *
+   * The store lives inside the project (`.kehikot/notifications/`), so this is
+   * the one context field that changes WHICH store is on screen rather than
+   * what is drawn out of it. A ref as well as state, because `onEvent` and
+   * `onClear` are registered once and must write to the project that is open
+   * NOW, not the one that was open when the connection was made.
+   */
+  const project = useRef<string | null>(null)
+  /** The store's own word on why there is nothing to read: no project, or a refused one. */
+  const [nowhere, setNowhere] = useState(true)
+  const [trouble, setTrouble] = useState<string | null>(null)
 
   const host = useRef<Connection | null>(null)
   /**
@@ -158,7 +176,7 @@ export function App() {
       await fetch(path, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-notifications-ticket': TICKET.current },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...(body as object), project: project.current }),
       })
     } catch (error) {
       /* Loopback, to our own origin. A failure here is this app's own server
@@ -170,11 +188,18 @@ export function App() {
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
-      const response = await fetch('/api/notifications', { cache: 'no-store' })
+      const asked = project.current
+      const query = asked === null ? '' : `?project=${encodeURIComponent(asked)}`
+      const response = await fetch(`/api/notifications${query}`, { cache: 'no-store' })
       const body = (await response.json()) as Standing
+      /* A context that moved us on while this was in flight has made this
+         answer about a project nobody is standing in. */
+      if (project.current !== asked) return
       setRows(Array.isArray(body.rows) ? (body.rows as Row[]) : [])
       if (typeof body.held === 'number') setHeld(body.held)
       if (typeof body.keep === 'number') setKeep(body.keep)
+      setNowhere(body.nowhere === true)
+      setTrouble(typeof body.trouble === 'string' ? body.trouble : null)
     } catch {
       /* Left as they were rather than emptied. A fetch that failed is not
          evidence that the store is empty, and drawing an empty panel over a
@@ -212,6 +237,17 @@ export function App() {
          over a machine set to dark actually gets it — see `index.css`. */
       root.classList.toggle('dark', context.theme === 'dark')
       root.classList.toggle('light', context.theme === 'light')
+
+      /* The project, last, and it re-reads everything when it moves: a new
+         project is a different file. What was on screen goes first, so the
+         previous project's lines are never drawn under the new one. */
+      const next = typeof context.projectPath === 'string' && context.projectPath.trim() ? context.projectPath : null
+      if (next !== project.current) {
+        project.current = next
+        setRows([])
+        setHeld(0)
+        void refresh()
+      }
     }
 
     const live = connect(ID, {
@@ -246,6 +282,10 @@ export function App() {
        * thing that makes an attribution on this page worth printing.
        */
       onEvent: (event) => {
+        /* No project, nowhere to keep it — and the page already says so. The
+           event is not held in memory to be written "later": later is a
+           different project, or none. */
+        if (project.current === null) return
         void post('/api/notifications', {
           from: event.from,
           at: event.at,
@@ -393,6 +433,24 @@ export function App() {
   useEffect(() => {
     host.current?.clearable(count === 0 ? null : `forget ${count} shown`)
   }, [count])
+
+  /*
+   * No project, or a refused one — said instead of the list, because neither is
+   * "nothing has happened". The store lives inside the project, and a panel
+   * with no project open has nowhere to read from or record into.
+   */
+  if (nowhere || trouble) {
+    return (
+      <div className="flex min-h-screen min-w-0 flex-col">
+        <p className="m-0 px-3 py-5 text-center text-muted-foreground [overflow-wrap:anywhere]">
+          {trouble
+            ? `Nothing can be shown or recorded here: ${trouble}`
+            : 'No project is open, so there is nowhere to keep notifications. They live inside the project they ' +
+              'happened in, at .kehikot/notifications/. Open a project on this canvas.'}
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-screen min-w-0 flex-col">

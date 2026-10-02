@@ -1,10 +1,25 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import {
+  constants,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmdirSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { KEHIKOT_DIR, moduleDir, moduleFile, within } from 'roadmap-module-protocol'
 import { z } from 'zod'
 
+import { ID } from './manifest.ts'
+
 /**
- * Everything this app has been shown, on disk, beside the program.
+ * Everything this app has been shown in one project, on disk, inside that project.
  *
  * ## Why a store at all, when the wire already delivers
  *
@@ -65,25 +80,227 @@ const HERE = fileURLToPath(new URL('.', import.meta.url))
  */
 export const KEEP = 2000
 
+/* ------------------------------------------------------------------ *
+ * Where: inside the project, never beside the program
+ * ------------------------------------------------------------------ */
+
 /**
- * Where the store lives.
+ * This app's own file, inside its own folder. A constant, never an argument.
  *
- * `NOTIFICATIONS_DATA` moves it, and it is deliberately not `ROADMAP_DATA`.
- * That variable belongs to a different program, and honouring it would make
- * this app's store follow a roadmap that may not be running and certainly never
- * agreed to hold anything of ours. One store, one owner, one name.
+ * ## What moved, and why
  *
- * Resolved at call time rather than at import, so a test setting the variable
- * does not depend on which module happened to load first.
+ * This store used to be ONE `data/notifications.json` beside the program,
+ * holding every line from every project at once. The convention every module
+ * on a kehikot host now follows is that a module keeps its data in the project
+ * itself — `<project>/.kehikot/<module>/` — so that what a project's canvases
+ * said travels with the project and can be read, copied or deleted on its own
+ * (`rm -r .kehikot/notifications` is a sentence somebody can say). The folder
+ * name and the joins belong to `roadmap-module-protocol`, not to this file; see
+ * `project.ts` there for why four modules answering "where does my data live"
+ * separately would be four answers.
+ *
+ * So: `<project>/.kehikot/notifications/notifications.json`. The path IS the
+ * partition — nothing in a row says which project it belongs to, because the
+ * file it is in already does.
+ *
+ * ## The project comes from the host, and there is no fallback
+ *
+ * The page learns its project from `roadmap.context.projectPath` and sends it
+ * with every read and write. When there is none — no project open, or a host
+ * too old to say — this store answers "nowhere" and the doors refuse to write.
+ * It does NOT fall back to this program's folder, to `process.cwd()`, or to
+ * the last project that spoke: a silently wrong location is worse than a loud
+ * absent one, and a notification recorded into a folder nobody will open, under
+ * a panel that says it was recorded, is exactly the failure this layout exists
+ * to prevent. The reasoning is the one in `kehikko-journeys/store.ts` and
+ * `kehikko-checklist/store.ts`, and this file follows them rather than
+ * reaching its own conclusion.
+ *
+ * ## The fence
+ *
+ * `projectPath` arrives over the wire into functions that create directories
+ * and write files. It is resolved with `realpathSync`, and `.kehikot` and this
+ * module's folder inside it are each checked to really be under the project
+ * AFTER resolution — a `.kehikot` that is a symlink to somewhere else is the
+ * case a string comparison misses. `within()` is the comparison; `escapes()`
+ * below is the check.
+ *
+ * ## The `.gitignore` is not this module's business
+ *
+ * Whether a project's `.kehikot/` is committed is a per-project checkbox in the
+ * host (`shareKehikot` in its `server/projects.ts`). Modules used to append the
+ * rule themselves and could never take it back; this one never started.
  */
-export function dataDir(): string {
-  const dir = process.env.NOTIFICATIONS_DATA ?? join(HERE, 'data')
-  mkdirSync(dir, { recursive: true })
-  return dir
+export const FILE = 'notifications'
+
+/** As long as a path may be, matching the protocol's own `LIMITS.PATH`. */
+const MAX_PROJECT = 4096
+
+/**
+ * Where a project's store is, or why there is not one.
+ *
+ * - `{ path }` — here it is (it may not exist yet).
+ * - `{ nowhere: true }` — no project is open. An ordinary state, not a fault.
+ * - `{ trouble }` — a project was named and this app will not work under it.
+ *
+ * Creates nothing. `makeDir` creates, and only on the way to a write.
+ */
+export type Place = { path: string; root: string } | { nowhere: true } | { trouble: string }
+
+export function place(projectPath: string | null | undefined): Place {
+  const root = projectRoot(projectPath)
+  if (root === null) return { nowhere: true }
+  if ('trouble' in root) return { trouble: root.trouble }
+
+  /* Both levels, outermost first, so a `.kehikot` pointing out of the project
+     is refused by its own name. Only what exists can be resolved, and only what
+     exists can escape — which is why `makeDir` asks again after creating. */
+  for (const dir of [join(root.path, KEHIKOT_DIR), ours(root.path)]) {
+    if (existsSync(dir)) {
+      const escaped = escapes(root.path, dir)
+      if (escaped) return { trouble: escaped }
+    }
+  }
+  const path = moduleFile(root.path, ID, FILE) as string
+  if (existsSync(path)) {
+    const escaped = escapes(root.path, path)
+    if (escaped) return { trouble: escaped }
+  }
+  return { path, root: root.path }
 }
 
-function storePath(): string {
-  return join(dataDir(), 'notifications.json')
+/** Make this module's folder under an already-resolved project, and fence it again. */
+function makeDir(root: string): string | null {
+  const dir = ours(root)
+  mkdirSync(dir, { recursive: true })
+  for (const made of [join(root, KEHIKOT_DIR), dir]) {
+    const escaped = escapes(root, made)
+    if (escaped) return escaped
+  }
+  return null
+}
+
+/** This module's own folder under a resolved project. `moduleDir` throws on a bad id, never on a constant. */
+function ours(root: string): string {
+  return moduleDir(root, ID) as string
+}
+
+/** The project, resolved — or null for "no project", or a sentence for a refusal. */
+function projectRoot(projectPath: string | null | undefined): { path: string } | { trouble: string } | null {
+  if (typeof projectPath !== 'string') return null
+  const raw = projectPath.trim()
+  if (!raw) return null
+  if (raw.length > MAX_PROJECT) return { trouble: 'that project path is longer than any path on this machine can be.' }
+  for (let i = 0; i < raw.length; i += 1) {
+    const code = raw.charCodeAt(i)
+    if (code < 0x20 || code === 0x7f) {
+      return { trouble: 'that project path has a control character in it, and no real path does.' }
+    }
+  }
+  if (!isAbsolute(raw)) {
+    return {
+      trouble:
+        `"${raw}" is not an absolute path. A project is somewhere on this machine, and a relative path would be `
+        + 'resolved against whatever directory this app happens to have been started in.',
+    }
+  }
+  try {
+    const resolved = realpathSync(raw)
+    if (!statSync(resolved).isDirectory()) {
+      return { trouble: `"${raw}" is not a folder, so there is nowhere under it to keep anything.` }
+    }
+    return { path: resolved }
+  } catch {
+    return { trouble: `there is no folder at "${raw}" on this machine, so nothing can be read or written under it.` }
+  }
+}
+
+/** The fence: a sentence if `child` is not really under `root`, null if it is. */
+function escapes(root: string, child: string): string | null {
+  let real: string
+  try {
+    real = realpathSync(child)
+  } catch {
+    return `${child} could not be resolved, so this app will not read or write through it.`
+  }
+  if (within(root, real)) return null
+  return (
+    `${child} resolves to ${real}, which is outside the project it claims to be inside. Nothing has been read or `
+    + 'written: a folder that points somewhere else is how one project’s notifications end up in another’s, and it '
+    + 'is refused rather than followed.'
+  )
+}
+
+/**
+ * The sentence for "no project is open", written once, because every write
+ * door says it and the page draws it.
+ */
+export const NOWHERE =
+  'no project is open, so there is nowhere to keep notifications. They live in the project they happened in, at '
+  + '.kehikot/notifications/notifications.json inside it, and this app will not guess which project was meant. '
+  + 'Open a project on this canvas.'
+
+/* ------------------------------------------------------------------ *
+ * The old store, beside the program, adopted once
+ * ------------------------------------------------------------------ */
+
+/**
+ * Where the OLD store was: `data/` beside this program.
+ *
+ * `NOTIFICATIONS_DATA` used to move the live store and now moves only this —
+ * where the legacy file is looked for. It is kept as a seam for the tests,
+ * which must never go looking in this repository's real `data/`: a test that
+ * opened a temporary project with the real legacy file in reach would adopt
+ * somebody's notifications into a directory it then deletes.
+ */
+export function legacyDir(): string {
+  return process.env.NOTIFICATIONS_DATA ?? join(HERE, 'data') // kehikot-storage: allow pre-.kehikot location, read only to migrate it
+}
+
+/**
+ * Move the old single store into this project, whole, if it is still there and
+ * this project has no store of its own yet.
+ *
+ * ## Why whole, and not split by canvas
+ *
+ * Every old row carries the canvas it happened on, so splitting it between
+ * projects looked possible. It is not, honestly: a row names a canvas by the
+ * host's runtime id and its display name, and what a project records about its
+ * canvases (`.kehikot/kehikko/kehikot.json`) is a different key and a name that
+ * is not unique — two projects on this machine each have a canvas called
+ * `kehikko`. Matching on that would be a guess, and a guess here puts one
+ * project's lines into another project's repository. So the whole file goes to
+ * the first project that opens without a store of its own, and the rows keep
+ * their canvas, so the panel's near/far filter still tells them apart.
+ *
+ * ## Never over anything
+ *
+ * A project that already has a `notifications.json` is not a destination: its
+ * file is left exactly as it is and the legacy file stays where it was, for the
+ * next project that has none. The copy is `COPYFILE_EXCL`, so even a store that
+ * appeared between the check and the copy is not overwritten. Only once the
+ * copy has landed is the old file removed, and then its folder if that left it
+ * empty.
+ *
+ * Returns the path adopted into, or null when there was nothing to do.
+ */
+function adopt(at: { path: string; root: string }): string | null {
+  const old = join(legacyDir(), 'notifications.json')
+  if (!existsSync(old) || existsSync(at.path)) return null
+  if (makeDir(at.root)) return null
+  try {
+    copyFileSync(old, at.path, constants.COPYFILE_EXCL)
+  } catch {
+    return null
+  }
+  try {
+    unlinkSync(old)
+    if (readdirSync(legacyDir()).length === 0) rmdirSync(legacyDir())
+  } catch {
+    /* The copy landed; a legacy file that could not be removed will simply be
+       skipped next time, because this project now has a store. */
+  }
+  return at.path
 }
 
 /**
@@ -162,13 +379,13 @@ type Held = z.infer<typeof fileSchema>
 const EMPTY: Held = { next: 1, rows: [] }
 
 /**
- * Read the store, or start an empty one.
+ * Read one project's store, or start an empty one.
  *
  * A file that is missing is the ordinary first run and answers empty. A file
  * that will not parse ALSO answers empty rather than throwing, and that is the
- * opposite of what this codebase's other stores do — journeys throws on an
- * unreadable journey, deliberately, because a journey is somebody's writing and
- * presenting a broken one as absent would hide work.
+ * opposite of what this codebase's other stores do — journeys refuses to show
+ * an unreadable journey, deliberately, because a journey is somebody's writing
+ * and presenting a broken one as absent would hide work.
  *
  * Nothing here is anybody's writing. Every row is a copy of something another
  * program said, already delivered, already gone from the wire. Throwing would
@@ -176,11 +393,15 @@ const EMPTY: Held = { next: 1, rows: [] }
  * is strictly worse than one that has forgotten, because a person cannot tell
  * the first from a quiet machine either. So a corrupt file is dropped, and the
  * next write replaces it.
+ *
+ * "No project" and "refused project" are NOT folded into empty: those come back
+ * as the `Place` they are, so the doors can say which.
  */
-function read(): Held {
+function read(at: { path: string; root: string }): Held {
+  adopt(at)
   let raw: string
   try {
-    raw = readFileSync(storePath(), 'utf8')
+    raw = readFileSync(at.path, 'utf8')
   } catch {
     return { ...EMPTY, rows: [] }
   }
@@ -200,42 +421,84 @@ function json(text: string): unknown {
   }
 }
 
-function write(held: Held): void {
-  writeFileSync(storePath(), `${JSON.stringify(held, null, 2)}\n`)
+/** Write, creating the folder first — the only place that does. A sentence back if the fence refused. */
+function write(at: { path: string; root: string }, held: Held): string | null {
+  const trouble = makeDir(at.root)
+  if (trouble) return trouble
+  writeFileSync(at.path, `${JSON.stringify(held, null, 2)}\n`)
+  return null
 }
 
 /**
- * Everything held, newest first.
+ * What a project holds, or why nothing can be said about it.
+ *
+ * `nowhere` and `trouble` are separate from an empty list on purpose: "nothing
+ * has happened here" and "no project is open" must not read the same on screen.
+ */
+export interface Standing {
+  /** Every row, newest first. Empty when there is nowhere to read. */
+  rows: Row[]
+  held: number
+  keep: number
+  /** No project is open. Not a fault. */
+  nowhere: boolean
+  /** A project was named and this app will not read or write under it. */
+  trouble: string | null
+}
+
+/**
+ * Everything held in this project, newest first, and the counts beside it.
  *
  * Sorted here rather than at every caller, because "newest first" is what this
  * app IS and a caller that got it backwards would be showing a person last
  * week's line at the top of a panel about now.
  */
-export function list(): Row[] {
-  return [...read().rows].sort((a, b) => b.seq - a.seq)
+export function standing(projectPath: string | null | undefined): Standing {
+  const at = place(projectPath)
+  if ('nowhere' in at) return { rows: [], held: 0, keep: KEEP, nowhere: true, trouble: null }
+  if ('trouble' in at) return { rows: [], held: 0, keep: KEEP, nowhere: false, trouble: at.trouble }
+  const rows = [...read(at).rows].sort((a, b) => b.seq - a.seq)
+  return { rows, held: rows.length, keep: KEEP, nowhere: false, trouble: null }
 }
 
-/** How many are held, and the cap, so a page can say why the count stopped. */
-export function standing(): { held: number; keep: number } {
-  return { held: read().rows.length, keep: KEEP }
+/** Everything held in this project, newest first. */
+export function list(projectPath: string | null | undefined): Row[] {
+  return standing(projectPath).rows
+}
+
+export type Done<T> = { ok: true; value: T } | { ok: false; error: string }
+
+/** The place to write, or the sentence saying why there is none. */
+function writable(projectPath: string | null | undefined): { ok: true; at: { path: string; root: string } } | { ok: false; error: string } {
+  const at = place(projectPath)
+  if ('nowhere' in at) return { ok: false, error: NOWHERE }
+  if ('trouble' in at) return { ok: false, error: `nothing was written. ${at.trouble}` }
+  return { ok: true, at }
 }
 
 /**
- * Record one event.
+ * Record one event in this project.
  *
  * Takes the envelope and the payload separately, because that is how they
  * arrive and how they must be kept — see the essay above on what is vouched
  * for. There is no path in this app that lets a caller supply `from`: the door
  * takes it off the event the host delivered, and the host took it off its own
  * registry.
+ *
+ * Refuses, with a sentence, when there is no project: see `NOWHERE`.
  */
-export function record(event: {
-  from: string
-  at: string
-  kehikko: Kehikko | null
-  payload: unknown
-}): Row {
-  const held = read()
+export function record(
+  projectPath: string | null | undefined,
+  event: {
+    from: string
+    at: string
+    kehikko: Kehikko | null
+    payload: unknown
+  },
+): Done<Row> {
+  const where = writable(projectPath)
+  if (!where.ok) return where
+  const held = read(where.at)
   const row = rowSchema.parse({
     seq: held.next,
     from: event.from,
@@ -252,12 +515,13 @@ export function record(event: {
     held.rows.sort((a, b) => a.seq - b.seq)
     held.rows = held.rows.slice(held.rows.length - KEEP)
   }
-  write(held)
-  return row
+  const trouble = write(where.at, held)
+  if (trouble) return { ok: false, error: `nothing was written. ${trouble}` }
+  return { ok: true, value: row }
 }
 
 /**
- * Forget everything, or forget exactly the rows named.
+ * Forget everything in this project, or forget exactly the rows named.
  *
  * Offered because a person has to be able to clear a panel they have read, and
  * a panel that can only be cleared by deleting a file is a panel with a
@@ -265,45 +529,38 @@ export function record(event: {
  * started again from 1 would collide with ids a page still had on screen, and
  * the page keys its rows by them.
  *
- * ## Why it can now be told WHICH, and why the old call still means everything
+ * ## Why it can be told WHICH, and why the old call still means everything
  *
- * The button this served used to be in this app's own bar and meant one thing:
- * discard the lot. The control has moved to the container header, where the
- * host draws it out of `roadmap.clearable` — and the host's rule for that
- * control is that it clears what is SHOWN, under whatever narrowing is in
- * force. This module narrows by kehikko, so "shown" and "everything" are the
- * same list on `all` and different lists on `here`.
+ * The control lives in the container header, where the host draws it out of
+ * `roadmap.clearable` — and the host's rule for that control is that it clears
+ * what is SHOWN, under whatever narrowing is in force. This module narrows by
+ * kehikko, so "shown" and "everything" are the same list on `all` and different
+ * lists on `here`. Only this module can tell those apart, so the page works out
+ * what it is showing and says so here.
  *
- * Only this module can tell those apart. The host cannot: it sees rows it does
- * not render, in a document it cannot read, in a frame on another origin, and
- * the protocol's `roadmap.clear` deliberately carries no ids for exactly that
- * reason. So the page works out what it is showing and says so here.
+ * `seqs` omitted still means everything in this project — what any caller has
+ * always meant by `/api/forget`.
  *
- * `seqs` omitted still means everything, and that is not laziness about an old
- * signature. It is what the MCP door and any other caller have always meant by
- * `/api/forget`, and a version that silently required a list would have turned
- * "clear this panel" into "clear nothing" for every caller that had not been
- * updated — which is the kind of change that produces a bug report reading "the
- * button stopped working" six weeks later.
- *
- * Ids that name nothing are ignored rather than refused. A page's idea of what
- * is on screen and the store's idea of what exists are two observations of the
- * same thing at two moments, and a row trimmed by `KEEP` between the render and
- * the press is not an error — it is a row that is already gone, which is what
- * was being asked for.
+ * Ids that name nothing are ignored rather than refused: a row trimmed by
+ * `KEEP` between the render and the press is already gone, which is what was
+ * being asked for.
  */
-export function forget(seqs?: readonly number[]): number {
-  const held = read()
+export function forget(projectPath: string | null | undefined, seqs?: readonly number[]): Done<number> {
+  const where = writable(projectPath)
+  if (!where.ok) return where
+  const held = read(where.at)
   const had = held.rows.length
   if (seqs === undefined) {
     held.rows = []
-    write(held)
-    return had
+  } else {
+    /* A `Set`, because this is a list from a page against a list from a file
+       and the naive version is quadratic in the number of rows on screen. */
+    const going = new Set(seqs)
+    held.rows = held.rows.filter((row) => !going.has(row.seq))
   }
-  /* A `Set`, because this is a list from a page against a list from a file and
-     the naive version is quadratic in the number of rows on screen. */
-  const going = new Set(seqs)
-  held.rows = held.rows.filter((row) => !going.has(row.seq))
-  write(held)
-  return had - held.rows.length
+  /* Nothing to forget in a project with no store is not a reason to create one. */
+  if (had === 0 && !existsSync(where.at.path)) return { ok: true, value: 0 }
+  const trouble = write(where.at, held)
+  if (trouble) return { ok: false, error: `nothing was written. ${trouble}` }
+  return { ok: true, value: had - held.rows.length }
 }
