@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ModuleContext } from 'roadmap-module-protocol'
-import { connect, type Connection } from 'roadmap-module-protocol/client'
+import { canonicalExtension, type ModuleContext } from 'kehikot-module-protocol'
+import { connect, type Connection } from 'kehikot-module-protocol/client'
 
-import { ID } from '../manifest.ts'
+import { FORMAT, ID } from '../manifest.ts'
 import type { Kehikko, Row } from '../store.ts'
 import { OFFER, scopeFrom, sift, type Scope } from './sift.ts'
 import { Line } from './view/line.tsx'
@@ -34,7 +34,7 @@ import { Line } from './view/line.tsx'
  *
  * That matters more here than it has anywhere this file has been copied from.
  * Everywhere else, what the mailbox saves is the greeting, and a lost greeting
- * is re-sent on the next frame load. This page also receives `roadmap.event`,
+ * is re-sent on the next frame load. This page also receives `kehikot.event`,
  * and an event is re-sent by nobody: the protocol is explicit that delivery is
  * best-effort and one sent to a module still loading is lost. Which is also why
  * there is a store behind this page and not merely a list in state.
@@ -48,13 +48,13 @@ import { Line } from './view/line.tsx'
  * ## The wire underneath, which is no longer written here
  *
  * `wire/host.ts` and `wire/mailbox.ts` — 507 lines, near-identical to the copy
- * in nine sibling modules — are `roadmap-module-protocol/client` now. Nothing
+ * in nine sibling modules — are `kehikot-module-protocol/client` now. Nothing
  * this page says on the wire changed. The `goto` backstop is passed explicitly
  * as 900ms because that was THIS module's number and the client's default is
  * 500; the option exists precisely so adoption keeps each module's own timing
  * rather than quietly unifying it.
  *
- * This is also the only module in the family that handles `roadmap.event`, and
+ * This is also the only module in the family that handles `kehikot.event`, and
  * `onEvent` is the client's name for the same thing, handed over whole — `from`,
  * `at` and `kehikko` are the host's envelope and are what makes an attribution
  * on this page worth printing.
@@ -131,7 +131,7 @@ export function App() {
   const [here, setHere] = useState<Kehikko | null>(null)
   const [greeted, setGreeted] = useState(false)
   /**
-   * Which project's store this page is reading — `roadmap.context.projectPath`
+   * Which project's store this page is reading — `kehikot.context.projectPath`
    * as the host last said, or null for none.
    *
    * The store lives inside the project (`.kehikot/notifications/`), so this is
@@ -258,7 +258,7 @@ export function App() {
        * asks it to keep nothing — it has its own store on its own origin, which
        * is where every row it draws comes from, and a filter is remembered in
        * `localStorage` because it is this browser's business rather than the
-       * roadmap's. So the parameter is named, ignored, and PRESENT: the copy of
+       * the host's. So the parameter is named, ignored, and PRESENT: the copy of
        * the wire that used to stand here dropped it at the signature, which
        * meant a page that decided to read it later would have had to rediscover
        * that the host had been sending it all along.
@@ -282,6 +282,10 @@ export function App() {
        * thing that makes an attribution on this page worth printing.
        */
       onEvent: (event) => {
+        /* A sender that has not updated names the extension `roadmap.notifications@1`;
+           one that has says `kehikot.notifications@1`. Both are this format. Anything
+           else is not a notification, whatever route it took here. */
+        if (event.extension && canonicalExtension(event.extension) !== FORMAT) return
         /* No project, nowhere to keep it — and the page already says so. The
            event is not held in memory to be written "later": later is a
            different project, or none. */

@@ -23,7 +23,7 @@ import './index.css'
  * files for the same reason: a module scope only a lazily-loaded chunk imports
  * is a module scope that has not run yet.
  */
-import 'roadmap-module-protocol/client'
+import 'kehikot-module-protocol/client'
 import { App } from './app.tsx'
 
 const root = document.getElementById('root')

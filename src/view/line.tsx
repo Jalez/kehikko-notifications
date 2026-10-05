@@ -8,7 +8,7 @@ import { ago } from './ago.ts'
  *
  * ## The attribution comes FIRST, and it has a verb in it
  *
- * "roadmap.checklist says", above the message, and not "roadmap.checklist:"
+ * "kehikot.checklist says", above the message, and not "kehikot.checklist:"
  * underneath it. Both halves of that are deliberate.
  *
  * `from` is the host's word: taken from its own registry rather than from

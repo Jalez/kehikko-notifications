@@ -36,7 +36,7 @@ afterEach(() => {
 
 const body = (over: Record<string, unknown> = {}) => ({
   project,
-  from: 'roadmap.checklist',
+  from: 'kehikot.checklist',
   at: '2026-08-28T09:00:00.000Z',
   kehikko: { id: 1, name: 'workbench' },
   payload: { epic: 'modes-are-modules', message: 'the tests passed', level: 'done', refs: ['gh#41'] },
@@ -69,7 +69,7 @@ describe('reading', () => {
   test('healthz says who this is and what the cap is, and nothing about any project', () => {
     const reply = answer('GET', '/healthz', null, null)
     expect(reply?.status).toBe(200)
-    expect(reply?.body).toMatchObject({ ok: true, id: 'roadmap.notifications', keep: 2000 })
+    expect(reply?.body).toMatchObject({ ok: true, id: 'kehikot.notifications', keep: 2000 })
   })
 
   test('with no project the list says "nowhere" rather than "empty"', () => {
@@ -110,7 +110,7 @@ describe('writing', () => {
     const reply = answer('GET', '/api/notifications', null, null, q())
     const rows = (reply?.body as { rows: { from: string; payload: { message: string } }[] }).rows
     expect(rows).toHaveLength(1)
-    expect(rows[0]!.from).toBe('roadmap.checklist')
+    expect(rows[0]!.from).toBe('kehikot.checklist')
     expect(rows[0]!.payload.message).toBe('the tests passed')
   })
 

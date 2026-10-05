@@ -30,7 +30,7 @@
  *
  * ## The four levels
  *
- * `roadmap.notifications@1` has four: info, attention, done, blocked. They get
+ * `kehikot.notifications@1` has four: info, attention, done, blocked. They get
  * colours of their own because colour is the fastest channel a reader has in a
  * column of twenty rows — and the level is never drawn as colour ALONE. Every
  * row carries the word in its dot's `title`, because colour by itself is a
