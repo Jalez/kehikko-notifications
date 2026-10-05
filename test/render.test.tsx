@@ -21,7 +21,7 @@ const HERE = { id: 3, name: 'workbench' }
 
 const row = (over: Partial<Row> = {}): Row => ({
   seq: 1,
-  from: 'roadmap.checklist',
+  from: 'kehikot.checklist',
   at: new Date().toISOString(),
   kehikko: HERE,
   payload: { epic: 'modes-are-modules', message: 'the tests passed', level: 'done', refs: ['gh#41'] },
@@ -35,7 +35,7 @@ describe('a row is drawn as testimony', () => {
         <Line row={row()} here={HERE} />
       </ul>,
     )
-    expect(screen.getByText('roadmap.checklist')).toBeTruthy()
+    expect(screen.getByText('kehikot.checklist')).toBeTruthy()
     /* The verb is the whole point. `from` is the host's word and may be
        trusted; the sentence is one module's claim, and a panel that printed it
        alone would be asserting things nobody asserted. */
@@ -94,10 +94,10 @@ describe('a row is drawn as testimony', () => {
  * The bar is gone, and this is what stands where its tests did.
  *
  * It held a filter, then — once the filter moved to the container header over
- * `roadmap.filters` — a `Forget` button and an `N held` count, in a fixed strip
+ * `kehikot.filters` — a `Forget` button and an `N held` count, in a fixed strip
  * of chrome at the top of a container that is routinely 220 pixels wide and
  * under 300 tall. Both of those have now moved to the header too, over
- * `roadmap.clearable`, and there was nothing else in the row.
+ * `kehikot.clearable`, and there was nothing else in the row.
  *
  * The component and its tests are deleted rather than kept as a "renders
  * nothing" case, because there is no longer a component for anybody to bring

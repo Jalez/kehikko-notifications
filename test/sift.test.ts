@@ -20,7 +20,7 @@ function row(kehikko: { id: number; name: string } | null, message = 'something 
   seq += 1
   return {
     seq,
-    from: 'roadmap.checklist',
+    from: 'kehikot.checklist',
     at: '2026-08-28T09:00:00.000Z',
     kehikko,
     payload: { epic: 'modes-are-modules', message, level: 'info', refs: [] },

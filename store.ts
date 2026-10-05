@@ -13,7 +13,7 @@ import {
 } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { KEHIKOT_DIR, moduleDir, moduleFile, within } from 'roadmap-module-protocol'
+import { KEHIKOT_DIR, moduleDir, moduleFile, within } from 'kehikot-module-protocol'
 import { z } from 'zod'
 
 import { ID } from './manifest.ts'
@@ -95,7 +95,7 @@ export const KEEP = 2000
  * itself — `<project>/.kehikot/<module>/` — so that what a project's canvases
  * said travels with the project and can be read, copied or deleted on its own
  * (`rm -r .kehikot/notifications` is a sentence somebody can say). The folder
- * name and the joins belong to `roadmap-module-protocol`, not to this file; see
+ * name and the joins belong to `kehikot-module-protocol`, not to this file; see
  * `project.ts` there for why four modules answering "where does my data live"
  * separately would be four answers.
  *
@@ -105,7 +105,7 @@ export const KEEP = 2000
  *
  * ## The project comes from the host, and there is no fallback
  *
- * The page learns its project from `roadmap.context.projectPath` and sends it
+ * The page learns its project from `kehikot.context.projectPath` and sends it
  * with every read and write. When there is none — no project open, or a host
  * too old to say — this store answers "nowhere" and the doors refuse to write.
  * It does NOT fall back to this program's folder, to `process.cwd()`, or to
@@ -316,7 +316,7 @@ export const kehikkoSchema = z.object({ id: z.number(), name: z.string() })
 export type Kehikko = z.infer<typeof kehikkoSchema>
 
 /**
- * The notification payload, as `roadmap.notifications@1` defines it.
+ * The notification payload, as `kehikot.notifications@1` defines it.
  *
  * Held LOOSELY here, and that is a departure worth stating. The protocol
  * package's own `notificationPayload` is the authority and the host already ran
@@ -532,7 +532,7 @@ export function record(
  * ## Why it can be told WHICH, and why the old call still means everything
  *
  * The control lives in the container header, where the host draws it out of
- * `roadmap.clearable` — and the host's rule for that control is that it clears
+ * `kehikot.clearable` — and the host's rule for that control is that it clears
  * what is SHOWN, under whatever narrowing is in force. This module narrows by
  * kehikko, so "shown" and "everything" are the same list on `all` and different
  * lists on `here`. Only this module can tell those apart, so the page works out

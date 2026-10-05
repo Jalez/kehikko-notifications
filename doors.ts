@@ -35,7 +35,7 @@ import { KEEP, forget, record, standing, type Kehikko } from './store.ts'
 /**
  * The bounds, which are the format's own.
  *
- * `roadmap.notifications@1` bounds `message` at 2000 characters and `refs` at
+ * `kehikot.notifications@1` bounds `message` at 2000 characters and `refs` at
  * 32 of 64, and the host validated against exactly that before it delivered
  * anything. These are the same numbers written out rather than imported,
  * because the caller of `/api/record` is the page and the page is relaying what
@@ -148,7 +148,7 @@ export function answer(
 
   /*
    * One project's list. The project is a query parameter because a GET has no
-   * body; the page takes it off `roadmap.context.projectPath`.
+   * body; the page takes it off `kehikot.context.projectPath`.
    *
    * No project, or a refused one, is still a 200 — with `nowhere` or `trouble`
    * saying which — because the page has to draw that state rather than treat
@@ -166,7 +166,7 @@ export function answer(
     if (!body) return bad('that was not a request')
 
     /*
-     * One event, as this app's own page relays it out of a `roadmap.event`.
+     * One event, as this app's own page relays it out of a `kehikot.event`.
      *
      * `from` is taken from the body and that is not a hole, because of where
      * the body comes from: the page copies it off the message the HOST posted
@@ -216,7 +216,7 @@ export function answer(
      * `seqs` arrives when the page is honouring the host's clear control, which
      * clears what is SHOWN — and what "shown" means is a question only this
      * module can answer, since it is the one that narrowed the list. See
-     * `forget` in `store.ts`, and the protocol's `roadmap.clear` on why the
+     * `forget` in `store.ts`, and the protocol's `kehikot.clear` on why the
      * message that starts all this carries no ids at all.
      *
      * No `seqs` still means everything, which is what this door has always

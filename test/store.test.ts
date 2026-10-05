@@ -60,7 +60,7 @@ const store = async () => {
 const file = () => join(project, '.kehikot', 'notifications', 'notifications.json')
 
 const event = (message: string, kehikko: { id: number; name: string } | null = { id: 1, name: 'workbench' }) => ({
-  from: 'roadmap.checklist',
+  from: 'kehikot.checklist',
   at: '2026-08-28T09:00:00.000Z',
   kehikko,
   payload: { epic: 'modes-are-modules', message, level: 'info', refs: [] },
@@ -77,7 +77,7 @@ describe('what is kept', () => {
     const { record, list } = await store()
     record(event('the tests passed'))
     const [row] = list()
-    expect(row!.from).toBe('roadmap.checklist')
+    expect(row!.from).toBe('kehikot.checklist')
     expect(row!.at).toBe('2026-08-28T09:00:00.000Z')
     expect(row!.kehikko).toEqual({ id: 1, name: 'workbench' })
     expect(row!.payload.message).toBe('the tests passed')
@@ -280,7 +280,7 @@ describe('the old store beside the program', () => {
     next: rows + 1,
     rows: Array.from({ length: rows }, (_, i) => ({
       seq: i + 1,
-      from: 'roadmap.checklist',
+      from: 'kehikot.checklist',
       at: '2026-08-01T00:00:00.000Z',
       kehikko: { id: 10, name: 'writing' },
       payload: { epic: '', message: `old ${i + 1}`, level: 'info', refs: [] },

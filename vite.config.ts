@@ -3,8 +3,8 @@ import { resolve } from 'node:path'
 
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { WELL_KNOWN } from 'roadmap-module-protocol'
-import { serves } from 'roadmap-module-protocol/serve'
+import { LEGACY_WELL_KNOWN, WELL_KNOWN, legacyManifest } from 'kehikot-module-protocol'
+import { frameAncestors, serves } from 'kehikot-module-protocol/serve'
 import { defineConfig, type Plugin } from 'vite'
 
 import { MANIFEST, TICKET, answer } from './doors.ts'
@@ -54,6 +54,9 @@ function doors(): Plugin {
         /* Spelled by the protocol package so that this app and every host
            cannot disagree about it by a character. */
         if (path === WELL_KNOWN) return send(200, MANIFEST)
+        /* The same manifest in the spelling a host from before the rename asks
+           for. It greets in that dialect and the protocol's client answers in it. */
+        if (path === LEGACY_WELL_KNOWN) return send(200, legacyManifest(MANIFEST))
 
         if (path === '/app' || path === '/app/' || path === '/') {
           void server
@@ -68,13 +71,11 @@ function doors(): Plugin {
                * `frame-ancestors` is the module's own half of the arrangement: a
                * host says which origins IT will frame, and this says who may
                * frame this. Deliberately not a list of one — whoever is running
-               * this decides, through `ROADMAP_ORIGIN`, and the default is the
-               * address the host in this workspace actually serves on.
+               * this decides, through `frameAncestors()` (`KEHIKOT_ORIGINS`, then the
+               * older `KEHIKOT_ORIGIN` / `ROADMAP_ORIGIN`), and the default is every
+               * address a host in this workspace serves on.
                */
-              response.setHeader(
-                'content-security-policy',
-                `frame-ancestors 'self' ${process.env.ROADMAP_ORIGIN ?? 'http://127.0.0.1:4181 http://localhost:4181'}`,
-              )
+              response.setHeader('content-security-policy', frameAncestors())
               response.end(html)
             })
             .catch(next)
@@ -181,7 +182,7 @@ async function body(request: IncomingMessage): Promise<Record<string, unknown> |
  * v3 file that v4 silently ignores — a config somebody edits, that has no
  * effect, with nothing anywhere saying so.
  *
- * ## No alias for `roadmap-module-protocol`
+ * ## No alias for `kehikot-module-protocol`
  *
  * There used to be one in every app here, pointing at the protocol's source in
  * the repository they all used to live in. It is gone and must not come back:

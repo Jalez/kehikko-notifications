@@ -11,9 +11,9 @@ bun test && bun run typecheck
 
 ## What it is
 
-A module that **consumes** `roadmap.notifications@1`. Another module calls
+A module that **consumes** `kehikot.notifications@1`. Another module calls
 `events.emit`; the host checks the format, validates the payload, stamps the
-sender out of its own registry, and posts a `roadmap.event` into this frame.
+sender out of its own registry, and posts a `kehikot.event` into this frame.
 This page writes it down and draws it.
 
 It emits nothing. It asks the host for nothing — `declares.uses` is empty. The
@@ -32,8 +32,8 @@ the machine was quiet.
 
 **The store lives in the project.** One file per project, at
 `<project>/.kehikot/notifications/notifications.json`, named by the
-`roadmap-module-protocol` helpers like every other module's. The page learns the
-project from `roadmap.context.projectPath` and sends it with every read and
+`kehikot-module-protocol` helpers like every other module's. The page learns the
+project from `kehikot.context.projectPath` and sends it with every read and
 write. With no project open there is nowhere to keep anything: the page says so,
 writes are refused with a sentence, and nothing falls back to a folder beside
 this program. Whether `.kehikot/` is committed is the host's per-project
@@ -56,7 +56,7 @@ everything and says why, because an empty list would be a claim, and a false one
 
 **The filter is offered, not drawn.** The two presses used to be a strip at the
 top of this page, in a container that is routinely 220 pixels wide. They are now
-one button in the container header: this module sends `roadmap.filters` with its
+one button in the container header: this module sends `kehikot.filters` with its
 options and their words, the host draws a menu out of them and never learns what
 `here` means, and a press comes back in `context.filters`. What did not move is
 the reporting — the sentence when the filter cannot be honoured, and the count
@@ -73,9 +73,9 @@ down permanently.
 **And so is the way to discard them.** `Forget` and the `N held` count beside it
 were the last two things in this page's own strip, and the strip is gone with
 them — thirty-one pixels of chrome given back, in a container that is routinely
-220 wide and under 300 tall. This module sends `roadmap.clearable` with a label
+220 wide and under 300 tall. This module sends `kehikot.clearable` with a label
 in its own words (`forget 12 shown`), the host draws one button beside the
-filter, and the second press comes back as `roadmap.clear`. The host learns
+filter, and the second press comes back as `kehikot.clear`. The host learns
 nothing: that message carries no ids, no count and no answer, because the host
 sees rows it does not render in a document it cannot read.
 
@@ -96,7 +96,7 @@ elsewhere" go on reading differently.
 **`from` is the host's word; the contents are the sender's.** The host took the
 sender's id from its own registry, so no module can post under another's name.
 Nobody checked whether the sentence is true. Every row is therefore drawn as
-"*roadmap.checklist* **says** …", with the by-line above the message rather than
+"*kehikot.checklist* **says** …", with the by-line above the message rather than
 below it: a reader should know whose claim it is before they read the claim.
 
 ## Why `declares.storage: true` and no `server.cors`

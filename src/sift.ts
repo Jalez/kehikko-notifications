@@ -40,7 +40,7 @@ export type Scope = 'all' | 'here'
  * from the thing somebody opened the module to look at. None of them could put
  * it anywhere else, because the strip around a module belongs to the host.
  *
- * `roadmap.filters` is the host learning to take it. This module says what it
+ * `kehikot.filters` is the host learning to take it. This module says what it
  * can be narrowed by; the host draws one button in the container header and
  * sends the press back in `context.filters`. The host is never told what any of
  * it MEANS — `all` and `here` are this file's words and stay this file's words,
@@ -90,7 +90,7 @@ export const OFFER = [
  * Two programs each assuming the other got it right is how a stale value
  * survives. Both defend, and this is our half.
  */
-export function scopeFrom(filters: Record<string, string> | undefined): Scope {
+export function scopeFrom(filters: Record<string, string | string[]> | undefined): Scope {
   return filters?.scope === 'here' ? 'here' : 'all'
 }
 

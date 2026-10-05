@@ -1,10 +1,10 @@
-import { MANIFEST_KIND, PROTOCOL, manifestSchema, type Manifest } from 'roadmap-module-protocol'
+import { MANIFEST_KIND, PROTOCOL, manifestSchema, type Manifest } from 'kehikot-module-protocol'
 
-export const ID = 'roadmap.notifications'
+export const ID = 'kehikot.notifications'
 export const VERSION = '1.0.0'
 
 /** The one format this app speaks. Named once, so nothing can misspell it twice. */
-export const FORMAT = 'roadmap.notifications@1'
+export const FORMAT = 'kehikot.notifications@1'
 
 /**
  * The port this app would rather have. Named once, for the same reason as the
@@ -13,7 +13,7 @@ export const FORMAT = 'roadmap.notifications@1'
  * 7910 used to be written twice — `--port "${PORT:-7910}"` at the bottom of
  * `run.sh` and `Number(process.env.PORT ?? 7910)` in `register.ts` — with
  * nothing keeping the two in step and a third copy sitting in
- * `~/.roadmap/modules` from whenever somebody last ran the second. Two literals
+ * `~/Library/Application Support/Kehikot/modules` from whenever somebody last ran the second. Two literals
  * that must agree and nothing making them agree is exactly what `FORMAT` exists
  * to prevent for the format string; the port had no such constant and drifted
  * the same way.
@@ -26,7 +26,7 @@ export const FORMAT = 'roadmap.notifications@1'
  * It is a PREFERENCE and not a promise. 7820 through 7960 belong to the other
  * modules on this machine, and if something else holds 7910 when this starts
  * then `serves()` moves to the next free port and rewrites the registration to
- * match — see `roadmap-module-protocol/serve`. A host reads the registry, so the
+ * match — see `kehikot-module-protocol/serve`. A host reads the registry, so the
  * registry is what has to be true; this number is only where to start looking.
  */
 export const PREFERRED_PORT = 7910
@@ -36,13 +36,13 @@ export const PREFERRED_PORT = 7910
  *
  * ## `consumes`, and this time it does something
  *
- * There was a version of this program in the roadmap's own `modules/` directory
- * that declared `extensions.consumes: ['roadmap.notifications@1']` knowing full
+ * There was a version of this program in the old roadmap app's own `modules/` directory
+ * that declared `extensions.consumes: ['kehikot.notifications@1']` knowing full
  * well that no host could route an event to it. The essay in that manifest
  * argued the declaration was still right — that it was the difference between a
  * program which would work the day routing existed and one which would need an
  * edit and a re-agreement first — and it was right. This is that day. The
- * protocol grew `roadmap.event`, the host grew a bus that reads this exact
+ * protocol grew `kehikot.event`, the host grew a bus that reads this exact
  * field out of this exact manifest, and the line that was a promise is now the
  * subscription.
  *
@@ -70,11 +70,11 @@ export const PREFERRED_PORT = 7910
  * ## What it asks for, which is nothing
  *
  * `uses: []`. Not modesty — there is genuinely no question this app needs to
- * ask. Everything it draws either arrives unbidden as a `roadmap.event` or
+ * ask. Everything it draws either arrives unbidden as a `kehikot.event` or
  * comes out of its own store, and the one comparison it makes is against a
  * field of the context every module is handed without asking. A panel that
  * declared `epics:read` so it could pretty up a slug would be asking for
- * permission to read the whole roadmap in exchange for a nicer heading, which
+ * permission to read the whole project in exchange for a nicer heading, which
  * is the fastest way to teach somebody to press yes without reading.
  *
  * Notably absent: `events:emit`. It is the capability behind the only method
