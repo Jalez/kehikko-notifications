@@ -124,6 +124,8 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   id: ID,
   name: 'Notifications',
   version: VERSION,
+  /* Where a host files this module in its list, most fitting first. */
+  tags: ['agents'],
   summary: 'What every module on this machine has said happened, newest first, with who said it.',
   /**
    * What an agent should do about this module being here.
