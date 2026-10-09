@@ -144,6 +144,8 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   entry: '/app',
   modes: [{ id: 'notifications', label: 'Notifications', scope: 'global' }],
   extensions: { emits: [], consumes: [FORMAT] },
+  /* Why this module has nothing to narrow by the parts of an epic. */
+  partless: 'Events carry a sender and a canvas, and no ref, epic or part.',
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
     uses: [],
