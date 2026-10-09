@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { canonicalExtension, type ModuleContext } from 'kehikot-module-protocol'
+import { canonicalExtension } from 'kehikot-module-protocol'
 import { ask } from 'kehikot-module-protocol/client'
 import { Cover, coverFor, useHost, useServerStanding, type CoverState } from 'kehikot-module-protocol/client/react'
 
@@ -86,27 +86,10 @@ interface Standing {
   trouble?: unknown
 }
 
-/** The project a context names, or null for none. Whitespace is not a project. */
-const pathOf = (context: ModuleContext | null): string | null =>
-  typeof context?.projectPath === 'string' && context.projectPath.trim() ? context.projectPath : null
-
 export function App() {
   const [rows, setRows] = useState<Row[]>([])
   const [held, setHeld] = useState(0)
   const [keep, setKeep] = useState(0)
-  /**
-   * Which project's store this page is reading — `kehikot.context.projectPath`
-   * as the host last said, or null for none.
-   *
-   * The store lives inside the project (`.kehikot/notifications/`), so this is
-   * the one context field that changes WHICH store is on screen rather than
-   * what is drawn out of it. A ref, written in the wire's own handlers rather
-   * than derived in render, because `onEvent` and `onClear` must write to the
-   * project that is open NOW — and the mailbox replays a greeting and the events
-   * behind it synchronously, before React has rendered the greeting at all. An
-   * event read against last render's project would be dropped for want of one.
-   */
-  const project = useRef<string | null>(null)
   /** Which project the rows on screen were read for. Not the open one: the read is still on its way. */
   const [readFor, setReadFor] = useState<string | null>(null)
   /** The store's own word on why there is nothing to read: no project, or a refused one. */
@@ -120,7 +103,7 @@ export function App() {
    *
    * A ref rather than state, and it exists for one reason: a press on the host's
    * clear control has to act on what is showing NOW, and it can arrive between
-   * a render and its effects. The same trick as `project` above.
+   * a render and its effects.
    *
    * This is the whole of what makes the host's clear control compose with the
    * host's filter control. What arrives from the host is a press with nothing
@@ -137,19 +120,21 @@ export function App() {
    * its server, is said by the shared cover (and the second reloads the page).
    */
   const post = useCallback(async (path: string, body: Record<string, unknown>, failing: string): Promise<void> => {
-    const asked = await ask(path, { body: { ...body, project: project.current } })
+    /* The project that is open NOW, which is the host's standing ahead of the render: the mailbox
+       replays a greeting and the events behind it before React has drawn the greeting. */
+    const asked = await ask(path, { body: { ...body, project: host.read().projectPath } })
     if (asked.ok) setRefusal(null)
     else if (asked.kind === 'refused') setRefusal(`${failing}: ${asked.error}`)
   }, [])
 
   const refresh = useCallback(async (): Promise<void> => {
-    const asked = project.current
+    const asked = host.read().projectPath
     /* No project, nothing to read: the store lives inside one. The cover says which kind of nothing. */
     if (asked === null) return
     const read = await ask<Standing>('/api/notifications', { query: { project: asked } })
     /* A context that moved us on while this was in flight has made this
        answer about a project nobody is standing in. */
-    if (project.current !== asked) return
+    if (host.read().projectPath !== asked) return
     if (!read.ok) {
       /* Rows left as they were rather than emptied. A read that failed is not
          evidence that the store is empty, and drawing an empty panel over a
@@ -170,23 +155,6 @@ export function App() {
     setReadFor(asked)
   }, [])
 
-  /* The project, and it re-reads everything when it moves: a new project is a
-     different file. What was on screen goes first, so the previous project's
-     lines are never drawn under the new one. One function for the greeting and
-     for every context after it, because they carry the same object. */
-  const moved = (context: ModuleContext) => {
-    const next = pathOf(context)
-    if (next === project.current) return
-    project.current = next
-    setRows([])
-    setHeld(0)
-    setReadFor(null)
-    setNowhere(false)
-    setTrouble(null)
-    setRefusal(null)
-    void refresh()
-  }
-
   /**
    * The wire, which is the protocol's `useHost`: connected once, handlers read
    * through a ref (so nothing below needs memoising), the theme put on `<html>`.
@@ -198,9 +166,6 @@ export function App() {
   const host = useHost(
     ID,
     {
-      onHello: moved,
-      onContext: moved,
-
       /**
        * One notification another module emitted.
        *
@@ -224,7 +189,7 @@ export function App() {
         /* No project, nowhere to keep it — and the page already says so. The
            event is not held in memory to be written "later": later is a
            different project, or none. */
-        if (project.current === null) return
+        if (host.read().projectPath === null) return
         void post(
           '/api/notifications',
           { from: event.from, at: event.at, kehikko: event.kehikko, payload: event.payload },
@@ -306,8 +271,23 @@ export function App() {
    * same way. `scopeFrom` falls back for an id this version does not know.
    */
   const scope: Scope = scopeFrom(host.chosen)
-  const here: Kehikko | null = host.context?.kehikko ?? null
-  const current = pathOf(host.context)
+  const here: Kehikko | null = host.kehikko
+  /* Which project's store this page reads: the store lives inside the project
+     (`.kehikot/notifications/`), so this is the one field that changes WHICH store is on screen. */
+  const current = host.projectPath
+
+  /* It re-reads everything when it moves: a new project is a different file. What was on screen
+     goes first, and until the read lands the cover below says loading, so the previous project's
+     lines are never drawn under the new one. */
+  useEffect(() => {
+    setRows([])
+    setHeld(0)
+    setReadFor(null)
+    setNowhere(false)
+    setTrouble(null)
+    setRefusal(null)
+    void refresh()
+  }, [current, refresh])
 
   const { filters, clearable } = host
   useEffect(() => {
@@ -347,16 +327,8 @@ export function App() {
    */
   const server = useServerStanding()
   const cover: CoverState | null =
-    server === 'stale'
-      ? 'stale'
-      : (coverFor({ where: host.where, projectPath: current })
-        ?? (server === 'down'
-          ? 'down'
-          : readFor !== current
-            ? 'loading'
-            : nowhere || trouble
-              ? 'no-project'
-              : null))
+    coverFor({ where: host.where, projectPath: current, server })
+    ?? (readFor !== current ? 'loading' : nowhere || trouble ? 'no-project' : null)
 
   const sifted = sift(rows, scope, here)
 
