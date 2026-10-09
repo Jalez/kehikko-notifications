@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { canonicalExtension } from 'kehikot-module-protocol'
 import { ask } from 'kehikot-module-protocol/client'
 import { Cover, coverFor, useHost, useServerStanding, type CoverState } from 'kehikot-module-protocol/client/react'
 
@@ -182,10 +181,9 @@ export function App() {
        * thing that makes an attribution on this page worth printing.
        */
       onEvent: (event) => {
-        /* A sender that has not updated names the extension `roadmap.notifications@1`;
-           one that has says `kehikot.notifications@1`. Both are this format. Anything
-           else is not a notification, whatever route it took here. */
-        if (event.extension && canonicalExtension(event.extension) !== FORMAT) return
+        /* `kehikot.notifications@1` is this format. Anything else is not a
+           notification, whatever route it took here. */
+        if (event.extension && event.extension !== FORMAT) return
         /* No project, nowhere to keep it — and the page already says so. The
            event is not held in memory to be written "later": later is a
            different project, or none. */
