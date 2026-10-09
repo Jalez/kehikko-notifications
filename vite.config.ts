@@ -1,144 +1,12 @@
-import type { IncomingMessage } from 'node:http'
 import { resolve } from 'node:path'
 
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { LEGACY_WELL_KNOWN, WELL_KNOWN, legacyManifest } from 'kehikot-module-protocol'
-import { frameAncestors, serves } from 'kehikot-module-protocol/serve'
-import { defineConfig, type Plugin } from 'vite'
+import { doors, serves } from 'kehikot-module-protocol/serve'
+import { defineConfig } from 'vite'
 
-import { MANIFEST, TICKET, answer } from './doors.ts'
+import { BUILD, MANIFEST, TICKET, answer } from './doors.ts'
 import { ID, PREFERRED_PORT } from './manifest.ts'
-import { page } from './page/document.ts'
-
-/**
- * Every door this app answers on, served by the one process that serves the
- * page.
- *
- * ## Why they cannot be a second server
- *
- * A module is ONE ORIGIN or it is nothing: the protocol refuses a manifest
- * whose `entry` points anywhere but the origin that served the manifest, and it
- * is right to — a program that could name somebody else's page would be a
- * program that could have the host frame somebody else.
- *
- * That argument usually gets made about the manifest and the health check. Here
- * it reaches further, because this module holds its own material: the page
- * fetches `/api/notifications` as a relative path, which is how it works with
- * nothing else running at all. A store on a second port would make every one of
- * those fetches cross-origin, and this app could not read its own notifications
- * inside the frame it exists to live in. So the store is middleware in front of
- * the same server that serves the page, and `doors.ts` holds the deciding
- * without holding a socket.
- */
-function doors(): Plugin {
-  return {
-    name: 'notifications-doors',
-    configureServer(server) {
-      server.middlewares.use((request, response, next) => {
-        const url = new URL(request.url ?? '/', 'http://127.0.0.1')
-        const path = url.pathname
-        const method = (request.method ?? 'GET').toUpperCase()
-
-        const send = (status: number, body: unknown) => {
-          if (body === null) {
-            response.statusCode = status
-            response.end()
-            return
-          }
-          response.statusCode = status
-          response.setHeader('content-type', 'application/json; charset=utf-8')
-          response.end(JSON.stringify(body, null, 2))
-        }
-
-        /* Spelled by the protocol package so that this app and every host
-           cannot disagree about it by a character. */
-        if (path === WELL_KNOWN) return send(200, MANIFEST)
-        /* The same manifest in the spelling a host from before the rename asks
-           for. It greets in that dialect and the protocol's client answers in it. */
-        if (path === LEGACY_WELL_KNOWN) return send(200, legacyManifest(MANIFEST))
-
-        if (path === '/app' || path === '/app/' || path === '/') {
-          void server
-            .transformIndexHtml(request.url ?? '/app', page(TICKET), request.originalUrl)
-            .then((html) => {
-              response.statusCode = 200
-              response.setHeader('content-type', 'text/html; charset=utf-8')
-              /*
-               * Framed by a host and by nothing else — and by nothing at all is
-               * fine too, which is what opening this page directly is.
-               *
-               * `frame-ancestors` is the module's own half of the arrangement: a
-               * host says which origins IT will frame, and this says who may
-               * frame this. Deliberately not a list of one — whoever is running
-               * this decides, through `frameAncestors()` (`KEHIKOT_ORIGINS`, then the
-               * older `KEHIKOT_ORIGIN` / `ROADMAP_ORIGIN`), and the default is every
-               * address a host in this workspace serves on.
-               */
-              response.setHeader('content-security-policy', frameAncestors())
-              response.end(html)
-            })
-            .catch(next)
-          return
-        }
-
-        const ours = path === '/healthz' || path.startsWith('/api/')
-        if (!ours) return next()
-
-        /* Only the paths above read a body, and only those wait for one. Vite's
-           own middleware stack has to keep seeing an unconsumed request for
-           everything else. */
-        void body(request)
-          .then((parsed) => {
-            const reply = answer(method, path, parsed, readTicket(request.headers['x-notifications-ticket']), url.searchParams)
-            if (!reply) return next()
-            send(reply.status, reply.body)
-          })
-          .catch(next)
-      })
-    },
-  }
-}
-
-/** One header, which node hands over as a string, an array, or nothing. */
-function readTicket(value: string | string[] | undefined): string | null {
-  if (typeof value === 'string') return value
-  if (Array.isArray(value)) return value[0] ?? null
-  return null
-}
-
-/**
- * The request body, as JSON, or null.
- *
- * Bounded, because the caller is whatever on this machine found the port —
- * loopback is a fence around the machine and not around the programs on it —
- * and a handler that reads until the socket closes is a handler that can be
- * asked to read forever. A notification's message is capped at 2000 characters
- * by its own format; nothing this app accepts is anywhere near this size, and
- * the bound is a bound rather than a budget.
- */
-const MAX_BODY_BYTES = 256_000
-
-async function body(request: IncomingMessage): Promise<Record<string, unknown> | null> {
-  if ((request.method ?? 'GET').toUpperCase() !== 'POST') return null
-  const chunks: Buffer[] = []
-  let size = 0
-  for await (const chunk of request) {
-    const piece = chunk as Buffer
-    size += piece.length
-    if (size > MAX_BODY_BYTES) return null
-    chunks.push(piece)
-  }
-  if (!chunks.length) return null
-  try {
-    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null
-  } catch {
-    return null
-  }
-}
 
 /**
  * The dev server, and the one line that is deliberately absent from it.
@@ -210,10 +78,32 @@ export default defineConfig({
    * has nothing to do with notifications. `PREFERRED_PORT` in `manifest.ts` is
    * where the number is said, once.
    *
-   * `doors()` next, so `/app` is claimed before Vite's own resolver can serve
-   * `src/app.tsx` in its place — see the essay in `page/document.ts`.
+   * `doors()` next — the protocol's — which is every door this app answers on,
+   * served by the one process that serves the page: the manifest, `/app` with
+   * the write ticket and the build printed into it, and `/healthz` and `/api/*`
+   * through `answer` in doors.ts. A module is ONE ORIGIN — the page fetches
+   * `/api/notifications` as a relative path, and a store on a second port would
+   * make that cross-origin — and `/app` has to be claimed before Vite's own
+   * resolver can serve `src/app.tsx` in its place. See the protocol's
+   * docs/module-plumbing.md.
+   *
+   * `maxBodyBytes` is this module's own bound, 256 kB rather than the default
+   * megabyte: a notification's message is capped at 2000 characters by its own
+   * format, nothing this app accepts is anywhere near this size, and the caller
+   * is whatever on this machine found the port.
    */
-  plugins: [serves({ id: ID, prefer: PREFERRED_PORT }), doors(), react(), tailwindcss()],
+  plugins: [
+    serves({ id: ID, prefer: PREFERRED_PORT }),
+    doors({
+      manifest: MANIFEST,
+      answer,
+      build: BUILD,
+      page: { title: 'Notifications', ticket: TICKET },
+      maxBodyBytes: 256_000,
+    }),
+    react(),
+    tailwindcss(),
+  ],
   /*
    * The `@` alias, which points inside this repository and is a different thing
    * entirely from aliasing a dependency. It is what the shadcn components in

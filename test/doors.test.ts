@@ -28,6 +28,7 @@ beforeEach(() => {
 })
 
 const q = () => new URLSearchParams({ project })
+const none = new URLSearchParams()
 
 afterEach(() => {
   delete process.env.NOTIFICATIONS_DATA
@@ -67,13 +68,13 @@ describe('the manifest', () => {
 
 describe('reading', () => {
   test('healthz says who this is and what the cap is, and nothing about any project', () => {
-    const reply = answer('GET', '/healthz', null, null)
+    const reply = answer('GET', '/healthz', none, null, null)
     expect(reply?.status).toBe(200)
     expect(reply?.body).toMatchObject({ ok: true, id: 'kehikot.notifications', keep: 2000 })
   })
 
   test('with no project the list says "nowhere" rather than "empty"', () => {
-    const reply = answer('GET', '/api/notifications', null, null)
+    const reply = answer('GET', '/api/notifications', none, null, null)
     expect(reply?.status).toBe(200)
     expect(reply?.body).toMatchObject({ ok: true, rows: [], nowhere: true })
   })
@@ -82,7 +83,7 @@ describe('reading', () => {
     /* What is here is a copy of things other modules already said out loud on a
        canvas. Gating reads would mean an agent's curl needing a ticket to see a
        page it can already open. */
-    const reply = answer('GET', '/api/notifications', null, null, q())
+    const reply = answer('GET', '/api/notifications', q(), null, null)
     expect(reply?.status).toBe(200)
     expect(reply?.body).toMatchObject({ ok: true, rows: [] })
   })
@@ -90,24 +91,26 @@ describe('reading', () => {
   test('a path this app does not own is handed back to Vite rather than refused', () => {
     /* `null`, not a 404. The page, the client module and Vite's own hot-reload
        socket all live on paths this file has never heard of. */
-    expect(answer('GET', '/page/main.ts', null, null)).toBeNull()
+    expect(answer('GET', '/page/main.ts', none, null, null)).toBeNull()
   })
 })
 
 describe('writing', () => {
   test('a write without the ticket is refused', () => {
-    const reply = answer('POST', '/api/notifications', body(), null)
+    const reply = answer('POST', '/api/notifications', none, body(), null)
     expect(reply?.status).toBe(403)
+    /* Marked, so the page's own `ask()` knows it is older than this server and reloads itself. */
+    expect((reply?.body as { refused: string }).refused).toBe('ticket')
   })
 
   test('a write with the wrong ticket is refused', () => {
-    const reply = answer('POST', '/api/notifications', body(), 'not-the-ticket')
+    const reply = answer('POST', '/api/notifications', none, body(), 'not-the-ticket')
     expect(reply?.status).toBe(403)
   })
 
   test('a write with the ticket is recorded and comes back on the list', () => {
-    expect(answer('POST', '/api/notifications', body(), TICKET)?.status).toBe(200)
-    const reply = answer('GET', '/api/notifications', null, null, q())
+    expect(answer('POST', '/api/notifications', none, body(), TICKET)?.status).toBe(200)
+    const reply = answer('GET', '/api/notifications', q(), null, null)
     const rows = (reply?.body as { rows: { from: string; payload: { message: string } }[] }).rows
     expect(rows).toHaveLength(1)
     expect(rows[0]!.from).toBe('kehikot.checklist')
@@ -115,32 +118,32 @@ describe('writing', () => {
   })
 
   test('a write with no project is refused with a sentence, not kept somewhere guessed', () => {
-    const reply = answer('POST', '/api/notifications', body({ project: undefined }), TICKET)
+    const reply = answer('POST', '/api/notifications', none, body({ project: undefined }), TICKET)
     expect(reply?.status).toBe(409)
     expect((reply?.body as { error: string }).error).toContain('no project is open')
   })
 
   test('forget with no project is refused too', () => {
-    expect(answer('POST', '/api/forget', {}, TICKET)?.status).toBe(409)
+    expect(answer('POST', '/api/forget', none, {}, TICKET)?.status).toBe(409)
   })
 
   test('a notification with nobody to attribute it to is refused, not stored as unknown', () => {
     /* This panel's whole job is attribution. A line it cannot attribute is not
        a notification, it is a rumour. */
-    const reply = answer('POST', '/api/notifications', body({ from: '  ' }), TICKET)
+    const reply = answer('POST', '/api/notifications', none, body({ from: '  ' }), TICKET)
     expect(reply?.status).toBe(400)
     expect((reply?.body as { error: string }).error).toContain('attribute')
   })
 
   test('a null kehikko is accepted, because a host need not have canvases', () => {
-    expect(answer('POST', '/api/notifications', body({ kehikko: null }), TICKET)?.status).toBe(200)
-    const rows = (answer('GET', '/api/notifications', null, null, q())?.body as { rows: { kehikko: unknown }[] }).rows
+    expect(answer('POST', '/api/notifications', none, body({ kehikko: null }), TICKET)?.status).toBe(200)
+    const rows = (answer('GET', '/api/notifications', q(), null, null)?.body as { rows: { kehikko: unknown }[] }).rows
     expect(rows[0]!.kehikko).toBeNull()
   })
 
   test('a malformed kehikko becomes null rather than a refusal or a guess', () => {
-    answer('POST', '/api/notifications', body({ kehikko: { id: 'three', name: 'workbench' } }), TICKET)
-    const rows = (answer('GET', '/api/notifications', null, null, q())?.body as { rows: { kehikko: unknown }[] }).rows
+    answer('POST', '/api/notifications', none, body({ kehikko: { id: 'three', name: 'workbench' } }), TICKET)
+    const rows = (answer('GET', '/api/notifications', q(), null, null)?.body as { rows: { kehikko: unknown }[] }).rows
     /* Guessing "this one" would put a stranger's line under the reader's own
        canvas, which is the one thing the filter must never do. */
     expect(rows[0]!.kehikko).toBeNull()
@@ -149,8 +152,8 @@ describe('writing', () => {
 
 describe('nothing arriving is unbounded', () => {
   test('an enormous message is cut rather than stored whole', () => {
-    answer('POST', '/api/notifications', body({ payload: { message: 'x'.repeat(1_000_000), epic: '' } }), TICKET)
-    const rows = (answer('GET', '/api/notifications', null, null, q())?.body as {
+    answer('POST', '/api/notifications', none, body({ payload: { message: 'x'.repeat(1_000_000), epic: '' } }), TICKET)
+    const rows = (answer('GET', '/api/notifications', q(), null, null)?.body as {
       rows: { payload: { message: string } }[]
     }).rows
     expect(rows[0]!.payload.message.length).toBeLessThanOrEqual(4000)
@@ -160,10 +163,11 @@ describe('nothing arriving is unbounded', () => {
     answer(
       'POST',
       '/api/notifications',
+      none,
       body({ payload: { message: 'many', epic: '', refs: Array.from({ length: 10_000 }, (_, i) => `gh#${i}`) } }),
       TICKET,
     )
-    const rows = (answer('GET', '/api/notifications', null, null, q())?.body as {
+    const rows = (answer('GET', '/api/notifications', q(), null, null)?.body as {
       rows: { payload: { refs: string[] } }[]
     }).rows
     /* The per-item bound stops one enormous string; the list bound stops ten
@@ -172,22 +176,22 @@ describe('nothing arriving is unbounded', () => {
   })
 
   test('an enormous sender id is cut rather than stored whole', () => {
-    answer('POST', '/api/notifications', body({ from: 'm'.repeat(50_000) }), TICKET)
-    const rows = (answer('GET', '/api/notifications', null, null, q())?.body as { rows: { from: string }[] }).rows
+    answer('POST', '/api/notifications', none, body({ from: 'm'.repeat(50_000) }), TICKET)
+    const rows = (answer('GET', '/api/notifications', q(), null, null)?.body as { rows: { from: string }[] }).rows
     expect(rows[0]!.from.length).toBeLessThanOrEqual(128)
   })
 })
 
 describe('forgetting', () => {
   test('forget needs the ticket too', () => {
-    answer('POST', '/api/notifications', body(), TICKET)
-    expect(answer('POST', '/api/forget', { project }, null)?.status).toBe(403)
+    answer('POST', '/api/notifications', none, body(), TICKET)
+    expect(answer('POST', '/api/forget', none, { project }, null)?.status).toBe(403)
   })
 
   test('forget empties it and says how many went', () => {
-    answer('POST', '/api/notifications', body(), TICKET)
-    answer('POST', '/api/notifications', body(), TICKET)
-    const reply = answer('POST', '/api/forget', { project }, TICKET)
+    answer('POST', '/api/notifications', none, body(), TICKET)
+    answer('POST', '/api/notifications', none, body(), TICKET)
+    const reply = answer('POST', '/api/forget', none, { project }, TICKET)
     expect(reply?.body).toMatchObject({ ok: true, forgotten: 2, held: 0 })
   })
 
@@ -195,10 +199,10 @@ describe('forgetting', () => {
      seqs of the rows it actually drew, under whatever scope the header's filter
      had it on. See `forget` in `store.ts`. */
   test('a list of seqs forgets those and leaves the rest', () => {
-    answer('POST', '/api/notifications', body(), TICKET)
-    answer('POST', '/api/notifications', body(), TICKET)
-    const rows = (answer('GET', '/api/notifications', null, null, q())?.body as { rows: { seq: number }[] }).rows
-    const reply = answer('POST', '/api/forget', { project, seqs: [rows[0]!.seq] }, TICKET)
+    answer('POST', '/api/notifications', none, body(), TICKET)
+    answer('POST', '/api/notifications', none, body(), TICKET)
+    const rows = (answer('GET', '/api/notifications', q(), null, null)?.body as { rows: { seq: number }[] }).rows
+    const reply = answer('POST', '/api/forget', none, { project, seqs: [rows[0]!.seq] }, TICKET)
     expect(reply?.body).toMatchObject({ ok: true, forgotten: 1, held: 1 })
   })
 
@@ -207,9 +211,9 @@ describe('forgetting', () => {
      an id matching nothing is already the ordinary case for a row trimmed
      between the render and the press. */
   test('rubbish inside the list is dropped rather than refusing the press', () => {
-    answer('POST', '/api/notifications', body(), TICKET)
-    const rows = (answer('GET', '/api/notifications', null, null, q())?.body as { rows: { seq: number }[] }).rows
-    const reply = answer('POST', '/api/forget', { project, seqs: [rows[0]!.seq, 'x', null, {}] }, TICKET)
+    answer('POST', '/api/notifications', none, body(), TICKET)
+    const rows = (answer('GET', '/api/notifications', q(), null, null)?.body as { rows: { seq: number }[] }).rows
+    const reply = answer('POST', '/api/forget', none, { project, seqs: [rows[0]!.seq, 'x', null, {}] }, TICKET)
     expect(reply?.body).toMatchObject({ ok: true, forgotten: 1, held: 0 })
   })
 
@@ -217,9 +221,9 @@ describe('forgetting', () => {
      the door, and guessing at what they meant is how "clear one" becomes "clear
      everything". */
   test('and a seqs that is not a list is refused rather than guessed at', () => {
-    answer('POST', '/api/notifications', body(), TICKET)
-    expect(answer('POST', '/api/forget', { project, seqs: 12 }, TICKET)?.status).toBe(400)
-    const held = (answer('GET', '/api/notifications', null, null, q())?.body as { held: number }).held
+    answer('POST', '/api/notifications', none, body(), TICKET)
+    expect(answer('POST', '/api/forget', none, { project, seqs: 12 }, TICKET)?.status).toBe(400)
+    const held = (answer('GET', '/api/notifications', q(), null, null)?.body as { held: number }).held
     expect(held).toBe(1)
   })
 })
