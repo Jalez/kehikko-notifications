@@ -1,3 +1,5 @@
+import { establishBuild, mintTicket, refuseTicket, type Reply } from 'kehikot-module-protocol/serve'
+
 import { ID, MANIFEST, VERSION } from './manifest.ts'
 import { KEEP, forget, record, standing, type Kehikko } from './store.ts'
 
@@ -15,10 +17,11 @@ import { KEEP, forget, record, standing, type Kehikko } from './store.ts'
  * be Vite's too, however much tidier a second process on a second port would
  * look.
  *
- * `answer()` therefore takes a method, a path and a body and returns a status
- * and a document. `vite.config.ts` adapts a node request to it in a dozen
- * lines, and everything decided here can be called without a socket — which is
- * what makes `test/doors.test.ts` a test of the decisions rather than of HTTP.
+ * `answer()` therefore takes a method, a path, a query, a body and a ticket and
+ * returns a status and a document. The protocol's `doors()` plugin adapts a node
+ * request to it (see `vite.config.ts`), and everything decided here can be
+ * called without a socket — which is what makes `test/doors.test.ts` a test of
+ * the decisions rather than of HTTP.
  *
  * ## Nothing here trusts its caller
  *
@@ -96,16 +99,17 @@ function refs(value: unknown): string[] {
  * already said out loud on a canvas; gating reads would mean an agent's `curl`
  * needing a ticket to see a page it can already open, and would buy nothing.
  */
-export const TICKET = crypto.randomUUID()
+export const TICKET = mintTicket()
+
+/** What this process is built from, said in the manifest, the health check, the page and a header on every answer. */
+export const BUILD = establishBuild({ version: VERSION, dir: import.meta.dirname })
+
+/** What a write without this process's ticket is told. Marked by `refuseTicket`, so the page's `ask()` reloads itself. */
+const NO_TICKET = 'that write did not come from this app’s own page'
 
 /* ------------------------------------------------------------------ *
  * Answers
  * ------------------------------------------------------------------ */
-
-export interface Reply {
-  status: number
-  body: unknown
-}
 
 const ok = (body: unknown): Reply => ({ status: 200, body })
 const bad = (why: string, status = 400): Reply => ({ status, body: { ok: false, error: why } })
@@ -136,9 +140,9 @@ function kehikkoOf(value: unknown): Kehikko | null {
 export function answer(
   method: string,
   path: string,
+  query: URLSearchParams,
   body: Record<string, unknown> | null,
   ticket: string | null,
-  query: URLSearchParams = new URLSearchParams(),
 ): Reply | null {
   /* No project here, deliberately: a health check is about this program, and
      which project's store is how full is not a question it can answer. */
@@ -162,7 +166,8 @@ export function answer(
   if (method === 'POST' && path.startsWith('/api/')) {
     /* The gate on every write, one line, because the whole argument for it is
        in `TICKET` above. */
-    if (ticket !== TICKET) return bad('that write did not come from this app’s own page', 403)
+    const refused = refuseTicket(ticket, TICKET, NO_TICKET)
+    if (refused) return refused
     if (!body) return bad('that was not a request')
 
     /*

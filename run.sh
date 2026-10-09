@@ -53,7 +53,7 @@
 #
 # So Vite serves the page, as Vite is for. The manifest, the health check and
 # this app's own store are middleware in front of the same server — see
-# `doors()` in `vite.config.ts` — because a module is one origin or it is
+# the protocol's `doors()` in `vite.config.ts` — because a module is one origin or it is
 # nothing, and because a page that fetched its own notifications from a second
 # port would be fetching them cross-origin.
 set -euo pipefail
