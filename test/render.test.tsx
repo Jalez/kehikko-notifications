@@ -313,6 +313,20 @@ describe('the not-ready moments, each as the one shared cover', () => {
     expect(cover()).toBeNull()
   })
 
+  test('an event that arrived before this page mounted is written for the project it was greeted with', async () => {
+    /* The mailbox replays the greeting and the event behind it in one go, before React has drawn
+       the greeting: the write reads the host's standing, not the last render's. */
+    const event = { protocol: 2, type: 'kehikot.event', extension: 'kehikot.notifications@1', from: 'kehikot.tests', at: '2026-10-09T10:00:00.000Z', kehikko: HERE, payload: { epic: '', message: 'm', level: 'info', refs: [] } }
+    window.postMessage({ protocol: 2, type: 'kehikot.hello', session: 's', state: null, context: { epic: null, theme: 'dark', kehikko: HERE, project: 'p', projectPath: '/tmp/p' } }, '*')
+    window.postMessage(event, '*')
+    await settle(30)
+    render(<App />)
+    await settle(30)
+    expect(writes.map((write) => write.body.project)).toEqual(['/tmp/p'])
+    expect(cover()).toBeNull()
+    expect(screen.getByText('the tests passed')).toBeTruthy()
+  })
+
   test('the host’s clear control forgets exactly what is on screen', async () => {
     render(<App />)
     await greet({ project: 'p', projectPath: '/tmp/p' })
