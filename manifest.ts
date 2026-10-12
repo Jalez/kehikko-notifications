@@ -144,8 +144,10 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   entry: '/app',
   modes: [{ id: 'notifications', label: 'Notifications', scope: 'global' }],
   extensions: { emits: [], consumes: [FORMAT] },
-  /* Why this module has nothing to narrow by the parts of an epic. */
-  partless: 'Events carry a sender and a canvas, and no ref, epic or part.',
+  /* Why this module has nothing to narrow by the parts of an epic: it is not about one epic. It
+     is a log of what was said on every canvas, whichever project and epic it was said in. (An
+     event may well carry an epic and refs; that is not the reason.) */
+  partless: 'A log across projects and epics; it sits above any one epic’s parts.',
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
     uses: [],
