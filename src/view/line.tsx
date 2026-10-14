@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge.tsx'
 import { cn } from '@/lib/utils.ts'
+import type { EpicPart } from 'kehikot-module-protocol'
 import type { Kehikko, Row } from '../../store.ts'
 import { ago } from './ago.ts'
 
@@ -38,7 +39,34 @@ const LEVEL_COLOUR: Record<string, string> = {
   blocked: 'bg-blocked',
 }
 
-export function Line({ row, here }: { row: Row; here: Kehikko | null }) {
+/**
+ * Where a notice's `place` is, in a person's words: the parts it names (by name when they are
+ * parts of the epic that is open, else counted) and the kehikko it names (when it is the one the
+ * notice happened on, whose name this row holds). Epic is left out: its badge is already there.
+ */
+export function placeWords(row: Row, parts: readonly EpicPart[]): string[] {
+  const place = row.payload.place
+  if (!place) return []
+  const words: string[] = []
+  if (place.parts?.length) {
+    const named = place.parts.map((id) => parts.find((one) => one.id === id)?.heading).filter((n): n is string => Boolean(n))
+    words.push(named.length === place.parts.length ? named.join(', ') : `${place.parts.length} ${place.parts.length === 1 ? 'part' : 'parts'}`)
+  }
+  if (place.kehikko && row.kehikko?.key === place.kehikko && row.kehikko.name) words.push(row.kehikko.name)
+  return words
+}
+
+export function Line({
+  row,
+  here,
+  parts = [],
+  onGo,
+}: {
+  row: Row
+  here: Kehikko | null
+  parts?: readonly EpicPart[]
+  onGo?: (row: Row) => void
+}) {
   const level = String(row.payload.level ?? 'info')
   const message = String(row.payload.message ?? '')
   const epic = String(row.payload.epic ?? '')
@@ -59,6 +87,10 @@ export function Line({ row, here }: { row: Row; here: Kehikko | null }) {
         ? `on ${row.kehikko.name || `kehikko ${row.kehikko.id}`}`
         : null
 
+  const placed = placeWords(row, parts)
+  /* A press goes somewhere only when the notice said where AND there is an epic to go to. */
+  const goes = Boolean(onGo && row.payload.place && (row.payload.place.epic || epic))
+
   return (
     <li className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 border-b px-2.5 py-2 @[340px]/container:px-3 @[340px]/container:py-2.5">
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1 text-[0.7rem] text-muted-foreground">
@@ -75,7 +107,17 @@ export function Line({ row, here }: { row: Row; here: Kehikko | null }) {
         </span>
       </div>
 
-      <p className="m-0 min-w-0 [overflow-wrap:anywhere]">{message}</p>
+      {goes ? (
+        <button
+          type="button"
+          onClick={() => onGo?.(row)}
+          className="m-0 min-w-0 cursor-pointer border-0 bg-transparent p-0 text-left text-inherit [overflow-wrap:anywhere] hover:underline focus-visible:underline"
+        >
+          {message}
+        </button>
+      ) : (
+        <p className="m-0 min-w-0 [overflow-wrap:anywhere]">{message}</p>
+      )}
 
       {(epic || refs.length > 0 || where) && (
         <div className="flex min-w-0 flex-wrap gap-1">
@@ -83,6 +125,11 @@ export function Line({ row, here }: { row: Row; here: Kehikko | null }) {
           {refs.map((ref) => (
             <Badge key={ref} variant="outline">
               {ref}
+            </Badge>
+          ))}
+          {placed.map((word) => (
+            <Badge key={`place-${word}`} variant="outline">
+              {word}
             </Badge>
           ))}
           {where && <Badge variant="elsewhere">{where}</Badge>}

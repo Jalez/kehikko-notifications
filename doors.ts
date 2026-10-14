@@ -58,6 +58,9 @@ const MAX_REF = 200
 const MAX_REFS = 64
 const MAX_AT = 40
 const MAX_NAME = 200
+const MAX_KEY = 64
+/** `LIMITS.PLACE_PARTS` in the protocol: at most this many parts in one place. */
+const MAX_PLACE_PARTS = 16
 /** As long as a path may be, matching the protocol's own `LIMITS.PATH`. */
 const MAX_PROJECT = 4096
 
@@ -125,9 +128,28 @@ const bad = (why: string, status = 400): Reply => ({ status, body: { ok: false, 
  */
 function kehikkoOf(value: unknown): Kehikko | null {
   if (!value || typeof value !== 'object') return null
-  const raw = value as { id?: unknown; name?: unknown }
+  const raw = value as { id?: unknown; name?: unknown; key?: unknown }
   if (typeof raw.id !== 'number' || !Number.isFinite(raw.id)) return null
-  return { id: raw.id, name: str(raw.name, MAX_NAME) }
+  /* `key` (the stored identity of a kehikko) is kept when the host sent one, so a notice's `place.kehikko`
+     can be told apart from the kehikko it happened on. */
+  const key = str(raw.key, MAX_KEY).trim()
+  return { id: raw.id, name: str(raw.name, MAX_NAME), ...(key ? { key } : {}) }
+}
+
+/**
+ * Where a press on a notice goes (`place`, protocol 1.4.0): bounded and reduced to what a press can
+ * use. `null` when the sender said nothing usable — and then the notice is a notice without a place.
+ */
+function placeOf(value: unknown): { epic?: string; parts?: string[]; kehikko?: string } | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as { epic?: unknown; parts?: unknown; kehikko?: unknown }
+  const epic = str(raw.epic, MAX_EPIC).trim()
+  const kehikko = str(raw.kehikko, MAX_KEY).trim()
+  const parts = Array.isArray(raw.parts)
+    ? raw.parts.filter((one): one is string => typeof one === 'string').map((one) => str(one, MAX_EPIC).trim()).filter(Boolean).slice(0, MAX_PLACE_PARTS)
+    : []
+  const place = { ...(epic ? { epic } : {}), ...(parts.length ? { parts } : {}), ...(kehikko ? { kehikko } : {}) }
+  return Object.keys(place).length ? place : null
 }
 
 /**
@@ -207,6 +229,7 @@ export function answer(
           ...(typeof payload.step === 'number' && Number.isFinite(payload.step)
             ? { step: payload.step }
             : {}),
+          ...(placeOf(payload.place) ? { place: placeOf(payload.place) } : {}),
         },
       })
       /* 409 for "no project" and for a refused one: the request was fine, the
