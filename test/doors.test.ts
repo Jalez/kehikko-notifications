@@ -59,10 +59,10 @@ describe('the manifest', () => {
     expect(MANIFEST.declares.storage).toBe(true)
   })
 
-  test('asks for no capabilities at all, and notably not events:emit', () => {
+  test('asks for one capability, view:navigate, and notably not events:emit', () => {
     /* A notification panel that could write to itself is a panel whose contents
        are not evidence of anything. */
-    expect(MANIFEST.declares.uses).toEqual([])
+    expect(MANIFEST.declares.uses).toEqual(['view:navigate'])
   })
 })
 
@@ -225,5 +225,36 @@ describe('forgetting', () => {
     expect(answer('POST', '/api/forget', none, { project, seqs: 12 }, TICKET)?.status).toBe(400)
     const held = (answer('GET', '/api/notifications', q(), null, null)?.body as { held: number }).held
     expect(held).toBe(1)
+  })
+})
+
+describe('a notice’s place (protocol 1.4.0)', () => {
+  const recordWith = (payload: Record<string, unknown>) => {
+    const reply = answer(
+      'POST',
+      '/api/notifications',
+      new URLSearchParams(),
+      { project, from: 'kehikot.claude', at: '2026-10-14T10:00:00.000Z', kehikko: { id: 3, name: 'writing', key: 'writing-ab' }, payload },
+      TICKET,
+    )
+    return reply?.body as { ok: boolean; row?: { kehikko: { key?: string } | null; payload: Record<string, unknown> } }
+  }
+
+  test('a place is kept, and so is the key of the kehikko it happened on', () => {
+    const body = recordWith({ epic: 'thesis', message: 'done', place: { epic: 'thesis', parts: ['methods'], kehikko: 'writing-ab' } })
+    expect(body.row?.payload.place).toEqual({ epic: 'thesis', parts: ['methods'], kehikko: 'writing-ab' })
+    expect(body.row?.kehikko?.key).toBe('writing-ab')
+  })
+
+  test('a place is bounded and reduced to strings; nonsense is no place at all', () => {
+    const many = recordWith({ epic: '', message: 'x', place: { parts: Array.from({ length: 100 }, (_, i) => `p${i}`).concat([7 as unknown as string]) } })
+    expect((many.row?.payload.place as { parts: string[] }).parts).toHaveLength(16)
+    expect(recordWith({ epic: '', message: 'x', place: 'elsewhere' }).row?.payload.place).toBeUndefined()
+    expect(recordWith({ epic: '', message: 'x', place: {} }).row?.payload.place).toBeUndefined()
+  })
+
+  test('a notice with no place is stored exactly as before', () => {
+    const body = recordWith({ epic: 'thesis', message: 'done' })
+    expect(Object.keys(body.row!.payload).sort()).toEqual(['epic', 'level', 'message', 'refs'])
   })
 })

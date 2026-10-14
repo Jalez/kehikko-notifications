@@ -334,3 +334,147 @@ describe('the not-ready moments, each as the one shared cover', () => {
     expect(writes).toEqual([{ path: '/api/forget', ticket: '', body: { seqs: [2], project: '/tmp/p' } }])
   })
 })
+
+
+/**
+ * A notice that says where it happened (`place`, protocol 1.4.0): its press is `view.goto`.
+ */
+describe('a notice with a place', () => {
+  const placed = (over: Partial<Row['payload']> = {}): Row =>
+    row({
+      kehikko: { id: 3, name: 'writing', key: 'writing-ab' },
+      payload: {
+        epic: 'thesis',
+        message: 'the review is done',
+        level: 'done',
+        refs: [],
+        place: { parts: ['methods', 'results'], kehikko: 'writing-ab' },
+        ...over,
+      },
+    })
+  const PARTS = [
+    { id: 'methods', heading: 'Methods', refs: [], picked: false },
+    { id: 'results', heading: 'Results', refs: [], picked: false },
+  ]
+
+  test('the message is a button that hands the row to onGo', () => {
+    const seen: Row[] = []
+    render(
+      <ul>
+        <Line row={placed()} here={HERE} parts={PARTS} onGo={(r) => seen.push(r)} />
+      </ul>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'the review is done' }))
+    expect(seen).toHaveLength(1)
+  })
+
+  test('the place is said in a person’s words in the line that is already there', () => {
+    render(
+      <ul>
+        <Line row={placed()} here={HERE} parts={PARTS} onGo={() => {}} />
+      </ul>,
+    )
+    expect(screen.getByText('Methods, Results')).toBeTruthy()
+    expect(screen.getByText('writing')).toBeTruthy()
+    expect(screen.getAllByRole('listitem')).toHaveLength(1)
+  })
+
+  test('parts that are not the open epic’s are counted rather than invented', () => {
+    render(
+      <ul>
+        <Line row={placed()} here={HERE} parts={[]} onGo={() => {}} />
+      </ul>,
+    )
+    expect(screen.getByText('2 parts')).toBeTruthy()
+  })
+
+  test('a notice without a place is not a button, as before', () => {
+    render(
+      <ul>
+        <Line row={row()} here={HERE} onGo={() => {}} />
+      </ul>,
+    )
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  test('with no epic anywhere there is nowhere to go, so no button', () => {
+    render(
+      <ul>
+        <Line row={placed({ epic: '' })} here={HERE} onGo={() => {}} />
+      </ul>,
+    )
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+})
+
+describe('pressing a notice with a place, against a host', () => {
+  const realFetch = globalThis.fetch
+  const requests: { id: string; method: string; params: Record<string, unknown> }[] = []
+  let answerWith: ((id: string) => Record<string, unknown>) | null = null
+  const onMessage = (event: MessageEvent) => {
+    const data = event.data as { type?: string; id?: string; method?: string; params?: Record<string, unknown> }
+    if (data?.type !== 'kehikot.request' || !data.id) return
+    requests.push({ id: data.id, method: String(data.method), params: data.params ?? {} })
+    if (answerWith) {
+      const reply = answerWith(data.id)
+      setTimeout(() => window.postMessage({ protocol: 2, type: 'kehikot.response', id: data.id, ...reply }, '*'), 0)
+    }
+  }
+  const ROWS = {
+    ok: true,
+    rows: [
+      {
+        seq: 5,
+        from: 'kehikot.claude',
+        at: new Date().toISOString(),
+        kehikko: { id: 3, name: 'writing', key: 'writing-ab' },
+        payload: { epic: 'thesis', message: 'a session finished', level: 'done', refs: [], place: { parts: ['methods'], kehikko: 'writing-ab' } },
+      },
+    ],
+    held: 1,
+    keep: 200,
+    nowhere: false,
+    trouble: null,
+  }
+  const settle = (ms: number) => act(async () => void (await new Promise((resolve) => setTimeout(resolve, ms))))
+
+  beforeEach(async () => {
+    requests.length = 0
+    answerWith = null
+    resetServerStanding()
+    mailbox.forget?.()
+    globalThis.fetch = (async () => new Response(JSON.stringify(ROWS), { status: 200 })) as unknown as typeof fetch
+    window.addEventListener('message', onMessage)
+    render(<App />)
+    await act(async () => {
+      window.postMessage({ protocol: 2, type: 'kehikot.hello', session: 's', state: null, context: { epic: null, theme: 'dark', kehikko: { id: 1, name: 'other' }, project: 'p', projectPath: '/tmp/p' } }, '*')
+      await new Promise((resolve) => setTimeout(resolve, 40))
+    })
+  })
+  afterEach(() => {
+    window.removeEventListener('message', onMessage)
+    globalThis.fetch = realFetch
+  })
+
+  test('the press asks view.goto with the epic, the parts and the kehikko, and a "moved" says nothing', async () => {
+    answerWith = () => ({ ok: true, data: { outcome: 'moved', epic: 'thesis', why: '' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'a session finished' }))
+      await new Promise((resolve) => setTimeout(resolve, 40))
+    })
+    const asked = requests.find((one) => one.method === 'view.goto')
+    expect(asked?.params).toEqual({ epic: 'thesis', parts: ['methods'], kehikko: 'writing-ab' })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  test('a refusal is the host’s own sentence in the one line this page has', async () => {
+    answerWith = () => ({ ok: true, data: { outcome: 'no-such-target', epic: null, why: 'This kehikko has no part called methods.' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'a session finished' }))
+      await new Promise((resolve) => setTimeout(resolve, 40))
+    })
+    await settle(10)
+    expect(screen.getByRole('alert').textContent).toBe('This kehikko has no part called methods.')
+    expect(screen.getAllByRole('listitem')).toHaveLength(1)
+  })
+})

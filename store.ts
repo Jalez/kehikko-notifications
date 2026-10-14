@@ -312,7 +312,7 @@ function adopt(at: { path: string; root: string }): string | null {
  * saying so on screen is the honest handling; guessing "this one" would put a
  * stranger's line under the reader's own canvas.
  */
-export const kehikkoSchema = z.object({ id: z.number(), name: z.string() })
+export const kehikkoSchema = z.object({ id: z.number(), name: z.string(), key: z.string().optional() })
 export type Kehikko = z.infer<typeof kehikkoSchema>
 
 /**
@@ -339,6 +339,10 @@ export const payloadSchema = z
     level: z.string().default('info'),
     refs: z.array(z.string()).default([]),
     step: z.number().optional(),
+    /* 1.4.0: where a press on this line goes. Optional; a line without it goes nowhere, as before. */
+    place: z
+      .object({ epic: z.string().optional(), parts: z.array(z.string()).optional(), kehikko: z.string().optional() })
+      .optional(),
   })
   .passthrough()
 

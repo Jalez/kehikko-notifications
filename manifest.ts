@@ -67,15 +67,15 @@ export const PREFERRED_PORT = 7910
  * container about the machine, not about one piece of work, and it decides for
  * itself what is near.
  *
- * ## What it asks for, which is nothing
+ * ## What it asks for: one thing, to move the reader
  *
- * `uses: []`. Not modesty — there is genuinely no question this app needs to
- * ask. Everything it draws either arrives unbidden as a `kehikot.event` or
- * comes out of its own store, and the one comparison it makes is against a
- * field of the context every module is handed without asking. A panel that
- * declared `epics:read` so it could pretty up a slug would be asking for
- * permission to read the whole project in exchange for a nicer heading, which
- * is the fastest way to teach somebody to press yes without reading.
+ * `uses: ['view:navigate']`, since 1.4.0 and for one reason: a notice may carry a `place`
+ * (epic, parts, kehikko), and pressing it asks the host to go there with `view.goto`. Before
+ * that this was `[]` and it stayed `[]` for a long time on purpose: everything it draws either
+ * arrives unbidden as a `kehikot.event` or comes out of its own store, and a panel that
+ * declared `epics:read` so it could pretty up a slug would be asking for permission to read
+ * the whole project in exchange for a nicer heading. `view:navigate` reads nothing; it moves
+ * the person's own view, and only when they press a line that said where it happened.
  *
  * Notably absent: `events:emit`. It is the capability behind the only method
  * that could put a line on this page, and this app does not have it, cannot
@@ -150,7 +150,7 @@ export const MANIFEST: Manifest = manifestSchema.parse({
   partless: 'A log across projects and epics; it sits above any one epic’s parts.',
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
-    uses: [],
+    uses: ['view:navigate'],
     storage: true,
   },
   health: '/healthz',

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { navigationResult } from 'kehikot-module-protocol'
 import { ask } from 'kehikot-module-protocol/client'
 import { Cover, coverFor, useHost, useServerStanding, type CoverState } from 'kehikot-module-protocol/client/react'
 
@@ -152,6 +153,32 @@ export function App() {
     setNowhere(body.nowhere === true)
     setTrouble(typeof body.trouble === 'string' ? body.trouble : null)
     setReadFor(asked)
+  }, [])
+
+  /**
+   * A press on a notice that says where it happened (`place`, protocol 1.4.0).
+   *
+   * `view.goto` with `place.epic ?? epic`, the parts and the kehikko, as the protocol's essay on
+   * `notificationPayload` spells the press. The host's own sentence is the answer when it would
+   * not go, printed in the line this page already has for what it could not do: there is no new
+   * row. A host before 1.4.0 strips `parts` and `kehikko` and takes the person to the epic, which
+   * is a reasonable place to have been taken.
+   */
+  const go = useCallback(async (row: Row): Promise<void> => {
+    const place = row.payload.place
+    const epic = place?.epic || row.payload.epic
+    if (!place || !epic) return
+    const params: Record<string, unknown> = { epic }
+    if (place.parts?.length) params.parts = place.parts
+    if (place.kehikko) params.kehikko = place.kehikko
+    try {
+      const said = navigationResult.safeParse(await host.request('view.goto', params))
+      if (said.success && said.data.outcome === 'moved') setRefusal(null)
+      else if (said.success) setRefusal(said.data.why || (said.data.outcome === 'no-such-target' ? 'The host has no such place.' : 'The host would not go there now.'))
+      else setRefusal('The host did not say whether it went.')
+    } catch (error) {
+      setRefusal(error instanceof Error && error.message ? error.message : 'The host did not answer.')
+    }
   }, [])
 
   /**
@@ -457,7 +484,7 @@ export function App() {
         ) : (
           <ul className="m-0 min-w-0 list-none p-0">
             {sifted.rows.map((row) => (
-              <Line key={row.seq} row={row} here={here} />
+              <Line key={row.seq} row={row} here={here} parts={host.parts} onGo={go} />
             ))}
           </ul>
         )}
