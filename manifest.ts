@@ -36,7 +36,7 @@ export const PREFERRED_PORT = 7910
  *
  * ## `consumes`, and this time it does something
  *
- * There was a version of this program in the old roadmap app's own `modules/` directory
+ * There was a version of this program in the host app's old `modules/` directory
  * that declared `extensions.consumes: ['kehikot.notifications@1']` knowing full
  * well that no host could route an event to it. The essay in that manifest
  * argued the declaration was still right — that it was the difference between a
