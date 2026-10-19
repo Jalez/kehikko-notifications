@@ -266,7 +266,8 @@ export function legacyDir(): string {
  * Every old row carries the canvas it happened on, so splitting it between
  * projects looked possible. It is not, honestly: a row names a canvas by the
  * host's runtime id and its display name, and what a project records about its
- * canvases (`.kehikot/kehikko/kehikot.json`) is a different key and a name that
+ * canvases (`.kehikot/host/kehikot.json`, `.kehikot/kehikko/` before protocol
+ * 2.2.0) is a different key and a name that
  * is not unique — two projects on this machine each have a canvas called
  * `kehikko`. Matching on that would be a guess, and a guess here puts one
  * project's lines into another project's repository. So the whole file goes to
