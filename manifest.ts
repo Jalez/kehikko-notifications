@@ -1,7 +1,9 @@
 import { MANIFEST_KIND, PROTOCOL, manifestSchema, type Manifest } from 'kehikot-module-protocol'
+import pkg from './package.json'
 
 export const ID = 'kehikot.notifications'
-export const VERSION = '1.0.0'
+/** The module's version: package.json's, the one place it is written. A release is tagged with it. */
+export const VERSION: string = pkg.version
 
 /** The one format this app speaks. Named once, so nothing can misspell it twice. */
 export const FORMAT = 'kehikot.notifications@1'

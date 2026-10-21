@@ -107,6 +107,10 @@ describe('what is kept', () => {
   })
 })
 
+/* Filling the store to KEEP writes the file once per line, which takes longer
+   than bun's 5-second default on a busy machine or a CI runner. */
+const SLOW = 60_000
+
 describe('the cap, and what falls off', () => {
   test('the store stops at KEEP and it is the OLDEST that go', async () => {
     const { record, list, standing, KEEP } = await store()
@@ -120,7 +124,7 @@ describe('the cap, and what falls off', () => {
     expect(messages).not.toContain('line 0')
     expect(messages).not.toContain('line 4')
     expect(messages).toContain('line 5')
-  })
+  }, SLOW)
 
   test('seq keeps rising past a trim, so ids never repeat', async () => {
     const { record, KEEP } = await store()
@@ -129,7 +133,7 @@ describe('the cap, and what falls off', () => {
     /* A `seq` that restarted after a trim would collide with ids the page still
        has on screen. */
     expect(after.seq).toBe(KEEP + 1)
-  })
+  }, SLOW)
 })
 
 describe('forgetting', () => {
