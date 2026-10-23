@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 import { doors, serves } from 'kehikot-module-protocol/serve'
 import { defineConfig } from 'vite'
 
-import { BUILD, MANIFEST, TICKET, answer } from './doors.ts'
+import { BUILD, MANIFEST, MOST_READ, TICKET, answer } from './doors.ts'
 import { ID, PREFERRED_PORT } from './manifest.ts'
 
 /**
@@ -99,7 +99,7 @@ export default defineConfig({
       answer,
       build: BUILD,
       page: { title: 'Notifications', ticket: TICKET },
-      maxBodyBytes: 256_000,
+      maxBodyBytes: MOST_READ,
     }),
     react(),
     tailwindcss(),

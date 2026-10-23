@@ -107,6 +107,9 @@ export const TICKET = mintTicket()
 /** What this process is built from, said in the manifest, the health check, the page and a header on every answer. */
 export const BUILD = establishBuild({ version: VERSION, dir: import.meta.dirname })
 
+/** The most a request body may be, for the dev server and the built one alike. */
+export const MOST_READ = 256_000
+
 /** What a write without this process's ticket is told. Marked by `refuseTicket`, so the page's `ask()` reloads itself. */
 const NO_TICKET = 'that write did not come from this app’s own page'
 
