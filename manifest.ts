@@ -53,21 +53,17 @@ export const PREFERRED_PORT = 7910
  * screen it draws — and the host would refuse to echo it back anyway, because a
  * sender is not an audience.
  *
- * ## The mode is global, and the old one was not
+ * ## Two scopes: the project, or this kehikko
  *
- * The version this replaces scoped its mode to a journey, on the reasoning that
- * the interesting question is always "what happened on THIS work". That was the
- * best available answer when the only thing the wire said about location was
- * which epic was open. It is the wrong answer now, and the reason is the new
- * field on the context.
- *
- * A notification carries the KEHIKKO it happened on, and this page's whole
- * filter is a comparison between that and `context.kehikko`. An epic-scoped
- * mode would have the host hide this container whenever the canvas had no epic, on a
- * canvas where things are still happening — a notification panel that
- * disappears when you most want to look at it. Global says the truth: this is a
- * container about the machine, not about one piece of work, and it decides for
- * itself what is near.
+ * The store is one file per project (`.kehikot/notifications/`), so the
+ * default scope is `project` (protocol 2.29.0): everything logged in the
+ * project, whatever epic or kehikko it came from. A notification also carries
+ * the KEHIKKO it happened on, and at the second scope, `kehikko`, the list is
+ * only what happened on the one this container stands on — a comparison
+ * between that and `context.kehikko`. The person picks it per container in
+ * the host; it was a "which kehikko" filter of this module's own, and is now
+ * the scope, so there is one setting. Until 2.29.0 the mode said `global`,
+ * which meant "not one piece of work"; the scope now says what it is.
  *
  * ## What it asks for: one thing, to move the reader
  *
@@ -147,12 +143,16 @@ export const MANIFEST: Manifest = manifestSchema.parse({
     'was still loading missed what was sent to it, and what is here is what this container happened to be ' +
     'shown. If something matters, go and ask the module that claimed it.',
   entry: '/app',
-  modes: [{ id: 'notifications', label: 'Notifications', scope: 'global' }],
+  /* What its content belongs to (protocol 2.29.0): one mode per scope, the default first. */
+  modes: [
+    { id: 'notifications', label: 'Notifications', scope: 'project', scopeSays: 'everything logged in this project, whatever epic or kehikko it came from' },
+    { id: 'here', label: 'This kehikko', scope: 'kehikko', scopeSays: 'only what was logged on this kehikko' },
+  ],
   extensions: { emits: [], consumes: [FORMAT] },
   /* Why this module has nothing to narrow by the parts of an epic: it is not about one epic. It
      is a log of what was said on every canvas, whichever project and epic it was said in. (An
      event may well carry an epic and refs; that is not the reason.) */
-  partless: 'A log across projects and epics; it sits above any one epic’s parts.',
+  partless: 'A log of the project across its epics and kehikot; it sits above any one epic’s parts.',
   declares: {
     protocol: `>=${PROTOCOL} <${PROTOCOL + 1}`,
     uses: ['view:navigate'],

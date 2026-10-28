@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { sift, OFFER, scopeFrom } from '../src/sift.ts'
+import { MANIFEST } from '../manifest.ts'
 import type { Row } from '../store.ts'
 
 /**
@@ -114,57 +115,23 @@ describe('sift does not hand back the caller\'s array', () => {
 })
 
 /**
- * The offer this module hands the host, and what it does with the answer.
- *
- * The two presses that used to be in this page's own bar are now one button in
- * the container header, drawn by the host out of this. What is tested here is
- * the half that stayed: this module still says what the options are, what they
- * are called and what they mean, and still defends itself against an answer it
- * does not recognise.
+ * Which kehikko is the container's scope now (protocol 2.29.0): the host says it
+ * in `context.scope`, and this module offers no filter of its own for it.
  */
-describe('the filter is offered rather than drawn', () => {
-  test('the offer is the same two states the bar used to draw', () => {
-    expect(OFFER).toHaveLength(1)
-    expect(OFFER[0]!.options.map((o) => o.id)).toEqual(['all', 'here'])
+describe('the scope decides near or everything', () => {
+  test('nothing is offered as a filter: there is one setting, the scope', () => {
+    expect(OFFER).toHaveLength(0)
   })
 
-  /*
-   * `all` and not `here`. It is what a container nobody has pressed this on
-   * shows, what the host returns to when a stored value names an option this
-   * module no longer has, and what its "show everything" press goes to. `here`
-   * is a claim that this container knows which kehikko it is standing on, and
-   * it does not until a host has said so.
-   */
-  test('the resting state is everything', () => {
-    expect(OFFER[0]!.fallback).toBe('all')
-  })
-
-  test('a chosen option is read straight off the context', () => {
-    expect(scopeFrom({ scope: 'here' })).toBe('here')
-    expect(scopeFrom({ scope: 'all' })).toBe('all')
-  })
-
-  /*
-   * The host reconciles a stored choice against what this module is offering —
-   * but it cannot before this module has offered anything, and the greeting
-   * goes out first. So the first choice this page ever receives may name an
-   * option from a version of itself that no longer exists. A page that trusted
-   * it would narrow by a value nobody can see, choose or clear.
-   */
-  test('an option this version does not know is the resting state, not a filter', () => {
-    expect(scopeFrom({ scope: 'this-kehikko-old-spelling' })).toBe('all')
-  })
-
-  test('and so are no filters at all, which is what a host without them sends', () => {
-    expect(scopeFrom({})).toBe('all')
+  test('only the kehikko scope narrows; the project scope and anything else is everything', () => {
+    expect(scopeFrom('kehikko')).toBe('here')
+    expect(scopeFrom('project')).toBe('all')
     expect(scopeFrom(undefined)).toBe('all')
+    expect(scopeFrom('this-kehikko-old-spelling')).toBe('all')
   })
 
-  /*
-   * A key that is not really a key. Read off a plain object, `constructor`
-   * finds something inherited that nobody ever chose.
-   */
-  test('a prototype lookup cannot become a filter', () => {
-    expect(scopeFrom(JSON.parse('{"constructor":"here"}') as Record<string, string>)).toBe('all')
+  test('the manifest lists the project first and this kehikko second, each saying what it shows', () => {
+    expect(MANIFEST.modes.map((mode) => mode.scope)).toEqual(['project', 'kehikko'])
+    for (const mode of MANIFEST.modes) expect((mode.scopeSays ?? '').length).toBeGreaterThan(0)
   })
 })

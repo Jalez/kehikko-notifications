@@ -288,14 +288,13 @@ export function App() {
   /**
    * Which scope this container is on, as the HOST last said, and which kehikko.
    *
-   * Not remembered here, and not remembered anywhere in this program. The
-   * choice belongs to the container — the host stores it beside where that
-   * container sits and whether it is folded, and hands it back in the greeting
-   * before this page has drawn anything. Read on every context, so a press in
-   * the header and a switch between two containers of this module both land the
-   * same way. `scopeFrom` falls back for an id this version does not know.
+   * Not remembered here, and not remembered anywhere in this program. The scope
+   * belongs to the container (protocol 2.29.0) — the host keeps the person's
+   * pick with the arrangement and says it in `context.scope` on every context,
+   * so a pick in the settings window and a switch between two containers of
+   * this module both land the same way.
    */
-  const scope: Scope = scopeFrom(host.chosen)
+  const scope: Scope = scopeFrom(host.workingScope)
   const here: Kehikko | null = host.kehikko
   /* Which project's store this page reads: the store lives inside the project
      (`.kehikot/notifications/`), so this is the one field that changes WHICH store is on screen. */
@@ -332,7 +331,8 @@ export function App() {
      * answered. Sent unconditionally: a page with no host posts into nothing,
      * which costs nothing.
      */
-    filters(OFFER.map((group) => ({ ...group, options: [...group.options] })))
+    /* An empty offer (protocol 2.29.0): which kehikko is the scope now, not a filter. */
+    filters([...OFFER])
 
     /* The old per-browser key, taken out. See `RETIRED_SCOPE_KEY`. */
     try {
