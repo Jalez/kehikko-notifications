@@ -1,6 +1,6 @@
 {
   "name": "kehikko-notifications",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "type": "module",
   "description": "Every line the modules on this machine have left about what happened, newest first, attributed to whoever said it. An app: a page, a store of its own and a port of its own, which a host may frame — and which only fills up when one does, because a notification arrives as an event on the wire.",
@@ -19,7 +19,7 @@
     "lucide-react": "^1.33.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "kehikot-module-protocol": "git+ssh://git@github.com/Jalez/kehikko-protocol.git#v2.17.0",
+    "kehikot-module-protocol": "git+ssh://git@github.com/Jalez/kehikko-protocol.git#v2.29.0",
     "tailwind-merge": "^3.6.0",
     "zod": "^3.23.8"
   },
